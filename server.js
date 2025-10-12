@@ -17,9 +17,6 @@ app.use(express.json({ limit: '10mb' })); // Increase limit for images
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize Database Table
-createTable();
-
 // WebSocket server setup
 const wss = new WebSocketServer({ server });
 
@@ -56,7 +53,7 @@ app.get('/api/messages', async (req, res) => {
         const result = await pool.query('SELECT * FROM messages ORDER BY created_at ASC');
         res.json(result.rows);
     } catch (err) {
-        console.error(err);
+        console.error('Error fetching messages:', err);
         res.status(500).send('Server Error');
     }
 });
@@ -64,10 +61,11 @@ app.get('/api/messages', async (req, res) => {
 // API to post a new message
 app.post('/api/messages', async (req, res) => {
     const { sender, content, timeString } = req.body;
+    // The 'is_seen' and 'seen_at' columns have defaults, so we don't need to specify them on insert.
     try {
         const result = await pool.query(
             'INSERT INTO messages (sender, content, time_string) VALUES ($1, $2, $3) RETURNING *',
-            [sender, content, timeString]
+            [sender, JSON.stringify(content), timeString]
         );
         const newMessage = result.rows[0];
 
@@ -83,8 +81,8 @@ app.post('/api/messages', async (req, res) => {
 
         res.status(201).json(newMessage);
     } catch (err) {
-        console.error(err);
-        res.status(500).send('Server Error');
+        console.error('Error posting message:', err);
+        res.status(500).json({ error: 'Failed to save message', details: err.message });
     }
 });
 
@@ -114,6 +112,18 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html')); 
 });
 
-server.listen(PORT, () => {
-    console.log(`Server is listening on http://localhost:${PORT}`);
-});
+const startServer = async () => {
+    try {
+        // Initialize Database Table and wait for it to be ready
+        await createTable();
+
+        server.listen(PORT, () => {
+            console.log(`Server is listening on http://localhost:${PORT}`);
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+};
+
+startServer();

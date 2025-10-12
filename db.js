@@ -46,7 +46,12 @@ const createTable = async () => {
     }
     console.log('"messages" table is ready.');
   } catch (err) {
-    console.error('Error creating messages table. Please check your database connection credentials in .env', err);
+    let errorMessage = 'Error creating messages table. Please check your database connection credentials in .env.';
+    if (err.code === 'ENOTFOUND') {
+      errorMessage += `\nDNS lookup failed for host: ${err.hostname}. If using a cloud database (like Render), ensure you are using the EXTERNAL connection URL for local development.`;
+    }
+    console.error(errorMessage, err);
+    throw err; // Re-throw the error to be caught by the caller
   }
 };
 

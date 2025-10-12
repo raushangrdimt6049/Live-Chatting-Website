@@ -821,6 +821,17 @@
                     switch (eventData.type) {
                         case 'new_message':
                             renderMessage(eventData.payload);
+                            // If the current active user is the recipient, mark message as seen immediately
+                            const recipient = eventData.payload.sender === 'raushan' ? 'nisha' : 'raushan';
+                            if (activeUser === recipient) {
+                                // Use a small timeout to ensure the message is rendered before marking it seen,
+                                // although the backend handles the logic regardless of UI state.
+                                setTimeout(() => {
+                                    fetch('/api/messages/mark-as-seen', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser })
+                                    });
+                                }, 100);
+                            }
                             break;
                         case 'typing':
                             const typingIndicator = eventData.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
@@ -838,17 +849,29 @@
                             break;
                         case 'messages_seen':
                             eventData.payload.forEach(seenMessage => {
-                                const elements = messageElements.get(seenMessage.id);
-                                if (elements) {
+                                const messageTuple = messageElements.get(seenMessage.id);
+                                if (messageTuple) {
                                     // The element to update is the one in the SENDER's window
                                     const messageToUpdate = seenMessage.sender === 'raushan'
-                                        ? elements.raushan // Raushan sent it, update his window's bubble
-                                        : elements.nisha;   // Nisha sent it, update her window's bubble
+                                        ? messageTuple.raushan // Raushan sent it, update his window's bubble
+                                        : messageTuple.nisha;   // Nisha sent it, update her window's bubble
                                     
                                     const statusEl = messageToUpdate.statusElement;
-                                    if (statusEl) {
+                                    // Check if it's not already marked as seen to avoid adding multiple timestamps
+                                    if (statusEl && !statusEl.classList.contains('seen')) {
                                         statusEl.innerHTML = '✓✓';
                                         statusEl.classList.add('seen');
+
+                                        // Add the "Seen at" timestamp info
+                                        const seenInfoDiv = document.createElement('div');
+                                        seenInfoDiv.className = 'message-seen-info';
+                                        const seenDateSpan = document.createElement('span');
+                                        seenDateSpan.textContent = formatSeenDate(seenMessage.seen_at);
+                                        const seenTimeSpan = document.createElement('span');
+                                        seenTimeSpan.textContent = formatSeenTime(seenMessage.seen_at);
+                                        seenInfoDiv.appendChild(seenDateSpan);
+                                        seenInfoDiv.appendChild(seenTimeSpan);
+                                        messageToUpdate.appendChild(seenInfoDiv);
                                     }
                                 }
                             });
@@ -1182,23 +1205,25 @@
                     document.getElementById('raushan-notification').classList.add('hidden');
                     document.getElementById('nisha-notification').classList.add('hidden');
 
-                    await initializeApp(true); // Fetch fresh messages and mark as seen
-
                     if (activeUser === 'raushan') {
-                        document.getElementById('raushan-chat').classList.remove('hidden');
-                        document.getElementById('nisha-chat').classList.add('hidden');
                         // Mark messages sent by Nisha as seen
                         await fetch('/api/messages/mark-as-seen', {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ user: 'raushan' })
                         });
+                        document.getElementById('raushan-chat').classList.remove('hidden');
+                        document.getElementById('nisha-chat').classList.add('hidden');
                     } else {
+                        // Mark messages sent by Raushan as seen
+                        await fetch('/api/messages/mark-as-seen', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ user: 'nisha' })
+                        });
                         document.getElementById('nisha-chat').classList.remove('hidden');
                         document.getElementById('raushan-chat').classList.add('hidden');
                     }
-                    // Reset form
-                    passwordInput.value = '';
-                    errorMessage.innerHTML = '&nbsp;';
+
+                    await initializeApp(true); // Now fetch fresh messages which are already marked as seen
                 } else {
                     // Incorrect password
                     errorMessage.textContent = 'Incorrect Password!';

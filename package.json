@@ -1,17 +1,15 @@
 {
-  "name": "love-chat-backend",
+  "name": "love-chatting",
   "version": "1.0.0",
-  "description": "Backend for the Love Chatting application",
+  "description": "A real-time chat application.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "express": "^4.21.2",
-    "pg": "^8.16.3",
-    "ws": "^8.18.3"
+    "express": "^4.18.2",
+    "ws": "^8.13.0",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1"
   }
 }

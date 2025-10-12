@@ -1,12 +1,23 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+// Render provides a DATABASE_URL environment variable for the database service.
+// We use this in production, and fall back to the .env variables for local development.
+const connectionConfig = process.env.DATABASE_URL ? 
+  {
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false // Required for Render's managed DB
+    }
+  } : 
+  {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+  };
+
+const pool = new Pool(connectionConfig);
 
 const createTable = async () => {
   const queryText = `

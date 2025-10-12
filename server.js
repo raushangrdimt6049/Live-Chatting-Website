@@ -1,114 +1,48 @@
 const express = require('express');
-const { Pool } = require('pg');
-const path = require('path');
 const http = require('http');
-const WebSocket = require('ws');
+const { WebSocketServer } = require('ws');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-const port = process.env.PORT || 3000;
 
-// --- Database Connection ---
-const connectionString = process.env.DATABASE_URL + "?ssl=true";
+// Use a dynamic port from the environment or default to 3000
+const PORT = process.env.PORT || 3000;
 
-const pool = new Pool({
-  connectionString: connectionString,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public'))); // This will now correctly point to the 'public' folder
 
-// --- WebSocket Logic ---
-wss.on('connection', ws => {
-  console.log('Client connected');
+// WebSocket server setup
+const wss = new WebSocketServer({ server });
 
-  ws.on('message', message => {
-    try {
-      const data = JSON.parse(message);
-      // Broadcast typing status to other clients
-      if (data.type === 'typing' || data.type === 'stop_typing') {
-        wss.clients.forEach(client => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(data));
-          }
+wss.on('connection', (ws) => {
+    console.log('Client connected');
+
+    ws.on('message', (message) => {
+        console.log('received: %s', message);
+        // Broadcast the message to all clients, including the sender
+        wss.clients.forEach((client) => {
+            // Check if the client is ready to receive messages
+            if (client.readyState === ws.OPEN) {
+                client.send(message.toString());
+            }
         });
-      }
-    } catch (e) {
-      console.error('Failed to parse message or broadcast:', e);
-    }
-  });
+    });
 
-  ws.on('close', () => {
-    console.log('Client disconnected');
-  });
+    ws.on('close', () => {
+        console.log('Client disconnected');
+    });
+
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+    });
 });
 
-function broadcastMessage(message) {
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(message));
-    }
-  });
-}
-
-// --- Database Table Setup ---
-const setupDatabase = async () => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        sender VARCHAR(50) NOT NULL,
-        content JSONB NOT NULL,
-        time_string VARCHAR(50) NOT NULL,
-        is_seen BOOLEAN DEFAULT false,
-        seen_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    console.log('Database table is ready.');
-  } catch (err) {
-    console.error('Error setting up database:', err);
-  }
-};
-
-// --- Middleware ---
-// Serve the static files from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json()); // To parse JSON bodies
-
-// --- API Endpoints ---
-
-// Get the last 20 messages
-app.get('/api/messages', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM messages ORDER BY created_at DESC LIMIT 20');
-    res.json(result.rows.reverse()); // reverse to show oldest first
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+app.get('/', (req, res) => {
+    // This route serves the main HTML file
+    res.sendFile(path.join(__dirname, 'public', 'index.html')); 
 });
 
-// Post a new message
-app.post('/api/messages', async (req, res) => {
-  try {
-    const { sender, content, timeString } = req.body;
-    const result = await pool.query(
-      'INSERT INTO messages (sender, content, time_string) VALUES ($1, $2, $3) RETURNING *',
-      [sender, content, timeString]
-    );
-    const newMessage = result.rows[0];
-    broadcastMessage({ type: 'new_message', payload: newMessage }); // Broadcast the new message with a type
-    res.status(201).json(newMessage);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// --- Start the HTTP and WebSocket Server ---
-server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-  setupDatabase();
+server.listen(PORT, () => {
+    console.log(`Server is listening on http://localhost:${PORT}`);
 });

@@ -778,25 +778,84 @@
                 localStorage.setItem(UNREAD_STATUS_KEY, JSON.stringify(status));
             }
 
-            // Function to add a message to both chat windows
-            function addMessage(messageData, isNewMessage = false) {
-                const { sender, content, timeString } = messageData;
-                if (!content.text?.trim() && !content.imageUrl) return; // Don't send empty messages
+            function connectWebSocket() {
+                // Connect to the WebSocket server
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                socket = new WebSocket(`${protocol}//${window.location.host}`);
+
+                socket.onopen = () => {
+                    console.log('WebSocket connection established');
+                };
+
+                socket.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'typing') {
+                        const indicator = data.user === 'raushan' ? raushanTypingIndicator : nishaTypingIndicator;
+                        const messagesContainer = data.user === 'raushan' ? raushanMessages : nishaMessages;
+                        indicator.classList.add('visible');
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        return;
+                    }
+
+                    if (data.type === 'stop_typing') {
+                        const indicator = data.user === 'raushan' ? raushanTypingIndicator : nishaTypingIndicator;
+                        indicator.classList.remove('visible');
+                        return;
+                    }
+
+                    // It's a regular chat message
+                    const messageData = data;
+                    messageData.id = Date.now(); // Assign ID on receive
+                    messageData.isSeen = false;
+
+                    addMessage(messageData, false); // Render the message
+
+                    // Save history and update notifications
+                    saveChatHistory();
+                    const recipient = messageData.sender === 'raushan' ? 'nisha' : 'raushan'; // The one who receives it
+                    updateUnreadStatus(recipient);
+                    updateNotificationBadges();
+                };
+
+                socket.onclose = () => {
+                    console.log('WebSocket connection closed. Attempting to reconnect...');
+                    // Simple reconnect logic
+                    setTimeout(connectWebSocket, 3000);
+                };
+
+                socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+            }
+
+            function addMessage(messageData, isNewMessage = false) { // Handles adding new messages to history
+                if (!messageData.content.text?.trim() && !messageData.content.imageUrl) return;
 
                 if (isNewMessage) {
                     // When a new message is sent from this client
                     // Send it to the server instead of directly adding it
                     if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify(messageData));
+                        socket.send(JSON.stringify(messageData)); // Send to server
+                        return; // Stop execution here; wait for broadcast to render
                     }
+                    // If socket is not open, we can't send the message.
+                    // You might want to add an error message here later.
+                    return;
                 } else {
                     // This block runs when receiving a message (from server or local storage)
                     if (messages.length >= 20) messages.shift(); // Keep only the last 20 messages
                     messages.push(messageData);
+                    renderMessage(messageData);
                 }
+            }
 
+            // Function to render a message to both chat windows
+            function renderMessage(messageData) {
+                const { sender, content, timeString } = messageData;
+                
                 // Function to create a message element with content and timestamp
-                const createMessageElement = (msgContent) => {
+                const createMessageElement = (msgContent) => { // This is a local helper function
                     const messageDiv = document.createElement('div');
                     messageDiv.classList.add('message');
 
@@ -926,6 +985,8 @@
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
                 addMessage(messageData, true); // Pass true to indicate it's a new message to be sent
+                clearTimeout(raushanTypingTimer); // Stop the typing timer
+                if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'raushan' }));
                 raushanInput.value = ''; // Clear input field
             });
 
@@ -938,6 +999,8 @@
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
                 addMessage(messageData, true); // Pass true to indicate it's a new message to be sent
+                clearTimeout(nishaTypingTimer); // Stop the typing timer
+                if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'nisha' }));
                 nishaInput.value = ''; // Clear input field
             });
 
@@ -959,18 +1022,18 @@
             
             // --- Typing Indicator Logic ---
             raushanInput.addEventListener('input', () => {
-                if (socket) socket.send(JSON.stringify({ type: 'typing', user: 'nisha' }));
+                if (socket) socket.send(JSON.stringify({ type: 'typing', user: 'raushan' }));
                 clearTimeout(raushanTypingTimer);
                 raushanTypingTimer = setTimeout(() => {
-                    if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'nisha' }));
+                    if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'raushan' }));
                 }, 2000); // Hide after 2 seconds of inactivity
             });
 
             nishaInput.addEventListener('input', () => {
-                if (socket) socket.send(JSON.stringify({ type: 'typing', user: 'raushan' }));
+                if (socket) socket.send(JSON.stringify({ type: 'typing', user: 'nisha' }));
                 clearTimeout(nishaTypingTimer);
                 nishaTypingTimer = setTimeout(() => {
-                    if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'raushan' }));
+                    if (socket) socket.send(JSON.stringify({ type: 'stop_typing', user: 'nisha' }));
                 }, 2000); // Hide after 2 seconds of inactivity
             });
 
@@ -1159,7 +1222,7 @@
                 // If history changed, re-render the messages to update the 'seen' ticks
                 raushanMessages.innerHTML = '';
                 nishaMessages.innerHTML = '';
-                messages.forEach(msg => addMessage(msg, false));
+                messages.forEach(msg => renderMessage(msg));
             }
 
             // --- Load and Render Initial Data ---
@@ -1167,7 +1230,7 @@
                 const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
                 if (savedHistory) {
                     messages = JSON.parse(savedHistory).slice(-20); // Load only the last 20 messages
-                    messages.forEach(msg => addMessage(msg, false)); // Render existing messages
+                    messages.forEach(msg => renderMessage(msg)); // Render existing messages
                 }
                 updateNotificationBadges();
             }

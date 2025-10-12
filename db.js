@@ -19,6 +19,11 @@ const connectionConfig = process.env.DATABASE_URL ?
 
 const pool = new Pool(connectionConfig);
 
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
 const createTable = async () => {
   const queryText = `
     CREATE TABLE IF NOT EXISTS messages (
@@ -32,10 +37,16 @@ const createTable = async () => {
     );
   `;
   try {
-    await pool.query(queryText);
+    // Using pool.connect() is more robust for initial setup
+    const client = await pool.connect();
+    try {
+      await client.query(queryText);
+    } finally {
+      client.release();
+    }
     console.log('"messages" table is ready.');
   } catch (err) {
-    console.error('Error creating messages table', err.stack);
+    console.error('Error creating messages table. Please check your database connection credentials in .env', err);
   }
 };
 

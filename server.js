@@ -88,6 +88,27 @@ app.post('/api/messages', async (req, res) => {
     }
 });
 
+// API to clear all messages
+app.delete('/api/messages', async (req, res) => {
+    try {
+        // TRUNCATE is faster than DELETE for clearing a whole table and resets the ID sequence.
+        await pool.query('TRUNCATE TABLE messages RESTART IDENTITY');
+        console.log('Chat history cleared from database.');
+
+        // Broadcast a clear event to all connected clients
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ type: 'chat_cleared' }));
+            }
+        });
+
+        res.status(204).send(); // 204 No Content is a standard success response for DELETE
+    } catch (err) {
+        console.error('Error clearing chat history:', err);
+        res.status(500).send('Server Error');
+    }
+});
+
 app.get('/', (req, res) => {
     // This route serves the main HTML file
     res.sendFile(path.join(__dirname, 'public', 'index.html')); 

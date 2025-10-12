@@ -486,6 +486,54 @@
             }
         }
 
+        /* --- Image Zoom Modal --- */
+        .image-zoom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-zoom-modal-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #zoomed-image {
+            max-width: 90vw;
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .close-zoom-button {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #fff;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .refresh-chat-button {
+            position: static;
+            transform: none;
+            background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer; transition: transform 0.2s;
+        }
+
         /* --- Responsive Design --- */
         @media (max-width: 768px) {
             /* Adjust selection screen for mobile */
@@ -740,7 +788,7 @@
             let nishaTypingTimer;
 
             let socket;
-            
+
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
                 const day = String(date.getDate()).padStart(2, '0');
@@ -781,6 +829,11 @@
                             const stopTypingIndicator = eventData.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
                             stopTypingIndicator.classList.remove('visible');
                             break;
+                        case 'chat_cleared':
+                            raushanMessages.innerHTML = '';
+                            nishaMessages.innerHTML = '';
+                            console.log('Chat history cleared on client.');
+                            break;
                     }
                 };
 
@@ -800,7 +853,6 @@
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
                 const { sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
-                if (!content.text?.trim() && !content.imageUrl) return;
                 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
@@ -930,7 +982,7 @@
                 const messageData = {
                     sender: 'raushan',
                     content: { text: raushanInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 };
                 await fetch('/api/messages', {
                     method: 'POST',
@@ -938,9 +990,6 @@
                     body: JSON.stringify(messageData)
                 });
                 clearTimeout(raushanTypingTimer); // Stop the typing timer
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify({ type: 'stop_typing', user: 'raushan' }));
-                }
                 raushanInput.value = ''; // Clear input field
             });
 
@@ -1009,24 +1058,25 @@
             attachButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const user = button.dataset.user;
+                    // Programmatically click the hidden file input
                     document.getElementById(`${user}-image-input`).click();
                 });
             });
-            imageInputs.forEach(input => {
-                input.addEventListener('change', async (e) => { // Added async here
+            imageInputs.forEach((input) => {
+                input.addEventListener('change', async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
 
                     const reader = new FileReader();
                     reader.onload = async (event) => {
-                        const imageUrl = event.target.result; // This is a large base64 string
+                        const imageUrl = event.target.result;
                         const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
                         const messageData = {
                             sender: user,
                             content: { imageUrl: imageUrl },
                             timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         };
-                        await fetch('/api/messages', { // This await requires the function to be async
+                        await fetch('/api/messages', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(messageData)
@@ -1094,14 +1144,14 @@
                 });
             });
 
-            loginForm.addEventListener('submit', (e) => {
+            loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 if (passwordInput.value === PASSWORDS[activeUser]) {
                     // Correct password
                     loginModal.classList.remove('visible');
                     selectionContainer.classList.add('hidden');
                     chatAppContainer.classList.remove('hidden');
-                    initializeApp();
+                    await initializeApp(); // Fetch fresh messages from server
 
                     if (activeUser === 'raushan') {
                         document.getElementById('raushan-chat').classList.remove('hidden');
@@ -1139,16 +1189,29 @@
 
             // --- Clear History Logic ---
             clearHistoryButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    // This needs a backend implementation
-                    alert('Clear history feature not yet implemented on the server.');
+                button.addEventListener('click', async () => {
+                    if (confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+                        try {
+                            const response = await fetch('/api/messages', {
+                                method: 'DELETE',
+                            });
+
+                            if (!response.ok) {
+                                throw new Error('Server failed to clear history.');
+                            }
+                            // The WebSocket broadcast will handle clearing the UI.
+                        } catch (error) {
+                            console.error('Failed to clear chat history:', error);
+                            alert('Could not clear chat history. Please try again.');
+                        }
+                    }
                 });
             });
 
             // --- Refresh Chat Logic ---
             refreshButtons.forEach(button => {
                 button.addEventListener('click', () => {
-                    initializeApp();
+                    initializeApp(); // Re-fetch and re-render
                 });
             })
 
@@ -1168,11 +1231,10 @@
                         socket = setupWebSocket();
                     }
                 } catch (error) {
-                    console.error("Failed to initialize app:", error);
+                    console.error("Failed to fetch initial messages:", error);
                 }
             }
 
-            // Initial call to fetch messages on page load, even before login
             initializeApp();
 
         });

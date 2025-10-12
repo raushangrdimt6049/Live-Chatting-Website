@@ -1006,13 +1006,19 @@
             });
 
             // --- Image Sending Logic ---
+            attachButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const user = button.dataset.user;
+                    document.getElementById(`${user}-image-input`).click();
+                });
+            });
             imageInputs.forEach(input => {
-                input.addEventListener('change', async (e) => {
+                input.addEventListener('change', async (e) => { // Added async here
                     const file = e.target.files[0];
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = (event) => {
+                    reader.onload = async (event) => {
                         const imageUrl = event.target.result; // This is a large base64 string
                         const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
                         const messageData = {
@@ -1020,7 +1026,7 @@
                             content: { imageUrl: imageUrl },
                             timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         };
-                        await fetch('/api/messages', {
+                        await fetch('/api/messages', { // This await requires the function to be async
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(messageData)

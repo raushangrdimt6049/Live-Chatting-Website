@@ -423,7 +423,7 @@
             gap: 15px;
         }
 
-        .clear-history-button, .switch-user-button {
+        .clear-history-button, .switch-user-button, .refresh-chat-button {
             position: static;
             transform: none;
             background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer;
@@ -465,29 +465,6 @@
         }
         .emoji-picker span:hover {
             background-color: #f0f0f0;
-        }
-
-        /* --- Refresh Button --- */
-        #refresh-button {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(214, 51, 108, 0.8);
-            color: white;
-            border: none;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            font-size: 1.5rem;
-            cursor: pointer;
-            z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            backdrop-filter: blur(5px);
-            transition: transform 0.2s ease;
-        }
-        #refresh-button:hover {
-            transform: translateX(-50%) scale(1.1);
         }
 
         /* --- Main Page Header --- */
@@ -595,6 +572,7 @@
             <div class="chat-header">
                 <span>❤️ Raushan_143 ❤️</span>
                 <div class="header-icons">
+                    <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
                     <button class="clear-history-button" title="Clear History">🗑️</button>
                     <button class="switch-user-button" title="Switch User">↩️</button>
                 </div>
@@ -620,6 +598,7 @@
             <div class="chat-header">
                 <span>💖 Nisha_143 💖</span>
                 <div class="header-icons">
+                    <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
                     <button class="clear-history-button" title="Clear History">🗑️</button>
                     <button class="switch-user-button" title="Switch User">↩️</button>
                 </div>
@@ -684,6 +663,7 @@
             const userSelectionBoxes = document.querySelectorAll('.user-selection-box');
             const switchUserButtons = document.querySelectorAll('.switch-user-button');
             const clearHistoryButtons = document.querySelectorAll('.clear-history-button');
+            const refreshButtons = document.querySelectorAll('.refresh-chat-button');
 
             // New elements for emoji picker
             const emojiButtons = document.querySelectorAll('.emoji-button');
@@ -1073,6 +1053,17 @@
                     }
                 });
             });
+
+            // --- Refresh Chat Logic ---
+            refreshButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    raushanMessages.innerHTML = '';
+                    nishaMessages.innerHTML = '';
+                    initializeApp();
+                    // Re-apply seen status in case the other user has read messages
+                    handleUserLogin(activeUser);
+                });
+            })
 
             // --- New Notification Logic ---
             function updateNotificationBadges() {

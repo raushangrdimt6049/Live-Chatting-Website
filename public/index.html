@@ -655,7 +655,7 @@
     </div>
 
     <!-- Image Zoom Modal -->
-    <div id="image-zoom-modal" class="image-zoom-modal-overlay hidden">
+    <div id="image-zoom-modal" class="image-zoom-modal-overlay">
         <span class="close-zoom-button">&times;</span>
         <img id="zoomed-image" src="" alt="Zoomed Image">
     </div>
@@ -772,6 +772,11 @@
             // New elements for image sending
             const attachButtons = document.querySelectorAll('.attach-button');
             const imageInputs = document.querySelectorAll('input[type="file"]');
+
+            // New elements for image zoom
+            const imageZoomModal = document.getElementById('image-zoom-modal');
+            const zoomedImage = document.getElementById('zoomed-image');
+            const closeZoomButton = document.querySelector('.close-zoom-button');
 
             // New elements for image zoom
             const imageZoomModal = document.getElementById('image-zoom-modal');
@@ -1172,6 +1177,16 @@
             });
 
             populateEmojiPickers(); // Initialize the emoji pickers on load
+
+            // --- Image Zoom Logic ---
+            const closeZoomModal = () => {
+                imageZoomModal.classList.remove('visible');
+            };
+
+            closeZoomButton.addEventListener('click', closeZoomModal);
+            imageZoomModal.addEventListener('click', (e) => {
+                if (e.target === imageZoomModal) closeZoomModal();
+            });
 
             // --- Image Zoom Logic ---
             const closeZoomModal = () => {

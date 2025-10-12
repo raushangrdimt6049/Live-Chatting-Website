@@ -788,6 +788,8 @@
             let nishaTypingTimer;
 
             let socket;
+            let unreadCountInterval;
+            const messageElements = new Map(); // To map message ID to its DOM element
 
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
@@ -834,6 +836,26 @@
                             nishaMessages.innerHTML = '';
                             console.log('Chat history cleared on client.');
                             break;
+                        case 'messages_seen':
+                            eventData.payload.forEach(seenMessage => {
+                                const elements = messageElements.get(seenMessage.id);
+                                if (elements) {
+                                    // The element to update is the one in the SENDER's window
+                                    const messageToUpdate = seenMessage.sender === 'raushan'
+                                        ? elements.raushan // Raushan sent it, update his window's bubble
+                                        : elements.nisha;   // Nisha sent it, update her window's bubble
+                                    
+                                    const statusEl = messageToUpdate.statusElement;
+                                    if (statusEl) {
+                                        statusEl.innerHTML = '✓✓';
+                                        statusEl.classList.add('seen');
+                                    }
+                                }
+                            });
+                            break;
+                        case 'unread_count_update':
+                            updateUnreadCounts();
+                            break;
                     }
                 };
 
@@ -852,7 +874,7 @@
 
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
-                const { sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
+                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
                 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
@@ -916,13 +938,13 @@
                         raushanMessage.statusElement.classList.add('seen');
                         
                         // Use the data from the message object being rendered
-                        if (messageData.seenAt) {
+                        if (seenAt) {
                             const seenInfoDiv = document.createElement('div');
                             seenInfoDiv.className = 'message-seen-info';
                             const seenDateSpan = document.createElement('span');
                             seenDateSpan.textContent = formatSeenDate(seenAt);
                             const seenTimeSpan = document.createElement('span');
-                            seenTimeSpan.textContent = formatSeenTime(seenAt);
+                            seenTimeSpan.textContent = formatSeenTime(seenAt); // Use the correct variable
                             seenInfoDiv.appendChild(seenDateSpan);
                             seenInfoDiv.appendChild(seenTimeSpan);
                             raushanMessage.appendChild(seenInfoDiv);
@@ -952,13 +974,13 @@
                         nishaMessage.statusElement.classList.add('seen');
 
                         // Use the data from the message object being rendered
-                        if (messageData.seenAt) {
+                        if (seenAt) {
                             const seenInfoDiv = document.createElement('div');
                             seenInfoDiv.className = 'message-seen-info';
                             const seenDateSpan = document.createElement('span');
                             seenDateSpan.textContent = formatSeenDate(seenAt);
                             const seenTimeSpan = document.createElement('span');
-                            seenTimeSpan.textContent = formatSeenTime(seenAt);
+                            seenTimeSpan.textContent = formatSeenTime(seenAt); // Use the correct variable
                             seenInfoDiv.appendChild(seenDateSpan);
                             seenInfoDiv.appendChild(seenTimeSpan);
                             nishaMessage.appendChild(seenInfoDiv);
@@ -970,6 +992,10 @@
 
                 raushanMessages.appendChild(raushanMessage);
                 nishaMessages.appendChild(nishaMessage);
+
+                // Store references to the message elements by ID
+                messageElements.set(id, { raushan: raushanMessage, nisha: nishaMessage });
+
 
                 // Scroll to the bottom
                 raushanMessages.scrollTop = raushanMessages.scrollHeight;
@@ -1151,11 +1177,21 @@
                     loginModal.classList.remove('visible');
                     selectionContainer.classList.add('hidden');
                     chatAppContainer.classList.remove('hidden');
-                    await initializeApp(); // Fetch fresh messages from server
+                    
+                    clearInterval(unreadCountInterval); // Stop polling for unread counts
+                    document.getElementById('raushan-notification').classList.add('hidden');
+                    document.getElementById('nisha-notification').classList.add('hidden');
+
+                    await initializeApp(true); // Fetch fresh messages and mark as seen
 
                     if (activeUser === 'raushan') {
                         document.getElementById('raushan-chat').classList.remove('hidden');
                         document.getElementById('nisha-chat').classList.add('hidden');
+                        // Mark messages sent by Nisha as seen
+                        await fetch('/api/messages/mark-as-seen', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ user: 'raushan' })
+                        });
                     } else {
                         document.getElementById('nisha-chat').classList.remove('hidden');
                         document.getElementById('raushan-chat').classList.add('hidden');
@@ -1184,6 +1220,8 @@
                     chatAppContainer.classList.add('hidden');
                     selectionContainer.classList.remove('hidden');
                     activeUser = null;
+                    updateUnreadCounts(); // Check counts immediately
+                    unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Restart polling
                 });
             });
 
@@ -1215,27 +1253,56 @@
                 });
             })
 
+            // --- Unread Count Logic ---
+            async function updateUnreadCounts() {
+                // Fetch for Raushan (messages sent by Nisha)
+                const raushanRes = await fetch('/api/messages/unread-count?user=raushan');
+                const raushanData = await raushanRes.json();
+                const raushanBadge = document.getElementById('raushan-notification');
+                if (raushanData.count > 0) {
+                    raushanBadge.textContent = raushanData.count;
+                    raushanBadge.classList.remove('hidden');
+                } else {
+                    raushanBadge.classList.add('hidden');
+                }
+
+                // Fetch for Nisha (messages sent by Raushan)
+                const nishaRes = await fetch('/api/messages/unread-count?user=nisha');
+                const nishaData = await nishaRes.json();
+                const nishaBadge = document.getElementById('nisha-notification');
+                if (nishaData.count > 0) {
+                    nishaBadge.textContent = nishaData.count;
+                    nishaBadge.classList.remove('hidden');
+                } else {
+                    nishaBadge.classList.add('hidden');
+                }
+            }
+
             // --- Load and Render Initial Data ---
-            async function initializeApp() {
+            async function initializeApp(isLogin = false) {
                 try {
                     const response = await fetch('/api/messages');
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const messages = await response.json();
                     
+                    messageElements.clear();
                     raushanMessages.innerHTML = '';
                     nishaMessages.innerHTML = '';
                     messages.forEach(msg => renderMessage(msg));
                     
-                    // Connect to WebSocket after fetching initial messages
-                    if (!socket || socket.readyState === WebSocket.CLOSED) {
+                    // Connect to WebSocket on first load or login
+                    if (isLogin && (!socket || socket.readyState === WebSocket.CLOSED)) {
                         socket = setupWebSocket();
                     }
                 } catch (error) {
                     console.error("Failed to fetch initial messages:", error);
                 }
             }
-
-            initializeApp();
+            
+            // Initial setup when page loads
+            setupWebSocket(); // Connect WebSocket immediately on page load
+            updateUnreadCounts();
+            unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Poll every 5 seconds
 
         });
     </script>

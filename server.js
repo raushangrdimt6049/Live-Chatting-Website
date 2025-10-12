@@ -23,17 +23,11 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', (ws) => {
     console.log('Client connected');
 
-    ws.on('message', (message) => {
-        // This is for real-time events like typing
-        const data = JSON.parse(message.toString());
-
-        // Broadcast typing events to all clients except the sender
-        // This prevents the user from seeing their own "is typing" indicator.
+    ws.on('message', (rawMessage) => {
+        const message = JSON.parse(rawMessage.toString());
         wss.clients.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                if (data.type === 'typing' || data.type === 'stop_typing') {
-                    client.send(JSON.stringify(data));
-                }
+                client.send(JSON.stringify(message));
             }
         });
     });
@@ -76,6 +70,11 @@ app.post('/api/messages', async (req, res) => {
                     type: 'new_message',
                     payload: newMessage
                 }));
+                // Also notify clients to update their unread counts
+                client.send(JSON.stringify({
+                    type: 'unread_count_update',
+                    payload: { recipient: sender === 'raushan' ? 'nisha' : 'raushan' }
+                }));
             }
         });
 
@@ -83,6 +82,60 @@ app.post('/api/messages', async (req, res) => {
     } catch (err) {
         console.error('Error posting message:', err);
         res.status(500).json({ error: 'Failed to save message', details: err.message });
+    }
+});
+
+// API to get unread message count for a user
+app.get('/api/messages/unread-count', async (req, res) => {
+    const { user } = req.query; // e.g., 'raushan' or 'nisha'
+    if (!user) {
+        return res.status(400).json({ error: 'User query parameter is required.' });
+    }
+
+    // The receiver is the user passed in the query. We count messages sent by the OTHER user.
+    const sender = user === 'raushan' ? 'nisha' : 'raushan';
+
+    try {
+        const result = await pool.query(
+            'SELECT COUNT(*) FROM messages WHERE sender = $1 AND is_seen = FALSE',
+            [sender]
+        );
+        res.json({ count: parseInt(result.rows[0].count, 10) });
+    } catch (err) {
+        console.error('Error fetching unread count:', err);
+        res.status(500).json({ error: 'Failed to fetch unread count' });
+    }
+});
+
+// API to mark messages as seen
+app.post('/api/messages/mark-as-seen', async (req, res) => {
+    const { user } = req.body; // The user who is currently viewing the chat
+    if (!user) {
+        return res.status(400).json({ error: 'User is required in the request body.' });
+    }
+
+    // Mark messages sent by the OTHER user as seen
+    const sender = user === 'raushan' ? 'nisha' : 'raushan';
+
+    try {
+        const result = await pool.query(
+            `UPDATE messages SET is_seen = TRUE, seen_at = CURRENT_TIMESTAMP 
+             WHERE sender = $1 AND is_seen = FALSE 
+             RETURNING *`,
+            [sender]
+        );
+
+        const updatedMessages = result.rows;
+        // Broadcast the fact that these messages have been seen
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ type: 'messages_seen', payload: updatedMessages }));
+            }
+        });
+        res.status(200).json(updatedMessages);
+    } catch (err) {
+        console.error('Error marking messages as seen:', err);
+        res.status(500).json({ error: 'Failed to update messages' });
     }
 });
 

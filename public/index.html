@@ -743,6 +743,7 @@
             let raushanTypingTimer;
             let nishaTypingTimer;
 
+            let socket;
             function saveChatHistory() {
                 localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
             }
@@ -779,15 +780,19 @@
 
             // Function to add a message to both chat windows
             function addMessage(messageData, isNewMessage = false) {
-                const { sender, content, timeString, id } = messageData;
+                const { sender, content, timeString } = messageData;
                 if (!content.text?.trim() && !content.imageUrl) return; // Don't send empty messages
 
                 if (isNewMessage) {
+                    // When a new message is sent from this client
+                    // Send it to the server instead of directly adding it
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify(messageData));
+                    }
+                } else {
+                    // This block runs when receiving a message (from server or local storage)
                     if (messages.length >= 20) messages.shift(); // Keep only the last 20 messages
                     messages.push(messageData);
-                    saveChatHistory();
-                    const recipient = sender === 'raushan' ? 'nisha' : 'raushan';
-                    updateUnreadStatus(recipient);
                 }
 
                 // Function to create a message element with content and timestamp
@@ -916,15 +921,11 @@
             raushanForm.addEventListener('submit', (e) => {
                 e.preventDefault(); // Prevent page reload
                 const messageData = {
-                    id: Date.now(),
                     sender: 'raushan',
                     content: { text: raushanInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    isSeen: false
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
-                addMessage(messageData, true);
-                clearTimeout(raushanTypingTimer); // Stop the typing timer
-                nishaTypingIndicator.classList.remove('visible'); // Hide indicator on send
+                addMessage(messageData, true); // Pass true to indicate it's a new message to be sent
                 raushanInput.value = ''; // Clear input field
             });
 
@@ -932,15 +933,11 @@
             nishaForm.addEventListener('submit', (e) => {
                 e.preventDefault(); // Prevent page reload
                 const messageData = {
-                    id: Date.now(),
                     sender: 'nisha',
                     content: { text: nishaInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    isSeen: false
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
-                addMessage(messageData, true);
-                clearTimeout(nishaTypingTimer); // Stop the typing timer
-                raushanTypingIndicator.classList.remove('visible'); // Hide indicator on send
+                addMessage(messageData, true); // Pass true to indicate it's a new message to be sent
                 nishaInput.value = ''; // Clear input field
             });
 
@@ -996,13 +993,11 @@
                         const imageUrl = event.target.result;
                         const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
                         const messageData = {
-                            id: Date.now(),
                             sender: user,
                             content: { imageUrl: imageUrl },
-                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            isSeen: false
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         };
-                        addMessage(messageData, true);
+                        addMessage(messageData, true); // Send image message
                     };
                     reader.readAsDataURL(file);
 
@@ -1178,6 +1173,8 @@
             }
 
             initializeApp();
+
+            connectWebSocket();
 
         });
     </script>

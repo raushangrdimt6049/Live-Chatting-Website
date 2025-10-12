@@ -881,6 +881,22 @@
                 raushanTypingIndicator.classList.remove('visible'); // Hide indicator on send
                 nishaInput.value = ''; // Clear input field
             });
+
+            // --- Send message on Enter key press ---
+            raushanInput.addEventListener('keydown', (e) => {
+                // Check if Enter key is pressed and Shift key is not pressed
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Prevent adding a new line
+                    raushanForm.requestSubmit(); // Programmatically submit the form
+                }
+            });
+
+            nishaInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    nishaForm.requestSubmit();
+                }
+            });
             
             // --- Typing Indicator Logic ---
             raushanInput.addEventListener('input', () => {

@@ -10,7 +10,7 @@ const wss = new WebSocket.Server({ server });
 const port = process.env.PORT || 3000;
 
 // --- Database Connection ---
-const connectionString = process.env.DATABASE_URL;
+const connectionString = process.env.DATABASE_URL + "?ssl=true";
 
 const pool = new Pool({
   connectionString: connectionString,
@@ -22,6 +22,23 @@ const pool = new Pool({
 // --- WebSocket Logic ---
 wss.on('connection', ws => {
   console.log('Client connected');
+
+  ws.on('message', message => {
+    try {
+      const data = JSON.parse(message);
+      // Broadcast typing status to other clients
+      if (data.type === 'typing' || data.type === 'stop_typing') {
+        wss.clients.forEach(client => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse message or broadcast:', e);
+    }
+  });
+
   ws.on('close', () => {
     console.log('Client disconnected');
   });
@@ -82,7 +99,7 @@ app.post('/api/messages', async (req, res) => {
       [sender, content, timeString]
     );
     const newMessage = result.rows[0];
-    broadcastMessage(newMessage); // Broadcast the new message
+    broadcastMessage({ type: 'new_message', payload: newMessage }); // Broadcast the new message with a type
     res.status(201).json(newMessage);
   } catch (err) {
     console.error(err);

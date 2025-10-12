@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Love Chatting</title>
+    <style>
+        /* --- Google Font --- */
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        /* --- Base Styles & Body --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(45deg, #09203f 0%, #537895 100%); /* Dark blue gradient */
+            height: 100vh;
+            overflow: hidden; /* Hide scrollbars and keep hearts contained */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.5s ease;
+        }
+
+        /* --- Animated Background --- */
+        .hearts-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .emoji-float {
+            position: absolute;
+            bottom: -50px; /* Start below the screen */
+            font-size: 2rem;
+            color: rgba(255, 255, 255, 0.7); /* Made slightly more opaque for dark bg */
+            animation: floatUp 10s infinite linear;
+        }
+
+        /* Animation for floating hearts */
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0);
+                opacity: 0.5;
+            }
+            100% {
+                transform: translateY(-100vh);
+                opacity: 0;
+            }
+        }
+
+        /* --- Main Chat Container --- */
+        .chat-app-container {
+            display: flex;
+            gap: 40px;
+            padding: 20px;
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        /* --- Individual Chat Box Styling --- */
+        .chat-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border-radius: 25px; /* The curved rectangle effect */
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            height: 85vh;
+            max-height: 700px;
+        }
+
+        .chat-header {
+            position: relative;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.3);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 25px 25px 0 0;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #d6336c; /* A lovely pink color */
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        /* Custom scrollbar for a cleaner look */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(214, 51, 108, 0.4);
+            border-radius: 3px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            padding: 15px;
+            position: relative; /* For emoji picker positioning */
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .chat-input {
+            flex-grow: 1;
+            min-width: 0; /* Crucial for allowing the input to shrink in flexbox */
+            border: none;
+            padding: 12px 15px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #d6336c;
+        }
+
+        .emoji-button {
+            padding: 0 12px;
+            border: none;
+            background: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #555;
+            transition: transform 0.2s;
+        }
+        .emoji-button:hover {
+            transform: scale(1.1);
+        }
+        .attach-button {
+            padding: 0 12px;
+            border: none;
+            background: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: #555;
+            transition: transform 0.2s;
+        }
+        .attach-button:hover {
+            transform: scale(1.1);
+        }
+
+        .send-icon-button {
+            padding: 0 15px;
+            border: none;
+            background: none;
+            font-size: 1.6rem;
+            cursor: pointer;
+            color: #d6336c; /* Use the theme color */
+            transition: transform 0.2s;
+            margin-left: 5px;
+            transform-origin: center;
+        }
+        .send-icon-button:hover {
+            transform: scale(1.15);
+        }
+        /* --- Message Bubble Styling --- */
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+            animation: fadeInMessage 0.4s ease-out;
+        }
+
+        .message-content {
+            /* The actual text of the message */
+        }
+
+        .message-image {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 10px;
+            margin-bottom: 5px; /* Space between image and meta */
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .message-timestamp {
+            font-size: 0.75rem;
+            /* margin-top: 5px; */ /* No longer needed with flex */
+            align-self: flex-end;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            align-self: flex-end;
+            margin-top: 5px;
+            gap: 5px;
+        }
+
+        .message-status {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .message-seen-info {
+            display: flex;
+            gap: 8px;
+            font-size: 0.7rem;
+            font-style: italic;
+            color: rgba(255, 255, 255, 0.7);
+            align-self: flex-end;
+        }
+
+        .message.sent .message-timestamp {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .message.sent .message-status {
+            color: rgba(255, 255, 255, 0.8); /* Default gray-ish 'delivered' color */
+        }
+        .message.sent .message-status.seen {
+            color: #4fc3f7; /* A nice blue for 'seen' */
+        }
+
+        .message.sent {
+            background-color: #d6336c;
+            color: white;
+            align-self: flex-end; /* Aligns to the right */
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.received {
+            background-color: #ffffff;
+            color: #333;
+            align-self: flex-start; /* Aligns to the left */
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.received .message-timestamp {
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* --- Typing Indicator --- */
+        .typing-indicator {
+            padding: 0 20px 10px 20px;
+            height: 25px; /* Reserve space to prevent layout shift */
+            display: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .typing-indicator.visible {
+            display: block;
+            opacity: 1;
+        }
+
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(3) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+
+        /* Animation for new messages */
+        @keyframes fadeInMessage {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- New Selection Screen & Login Modal Styles --- */
+        .hidden {
+            display: none !important;
+        }
+
+        .selection-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .user-selection-box {
+            position: relative; /* For notification badge positioning */
+            width: 300px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: white;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .user-selection-box:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            width: 25px;
+            height: 25px;
+            background-color: #ff4d4d;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            box-shadow: 0 0 10px rgba(255, 77, 77, 0.7);
+        }
+        .login-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .login-modal-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .login-box {
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: #333;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .login-box h2 {
+            margin-bottom: 10px;
+            color: #d6336c;
+        }
+
+        .login-box p {
+            margin-bottom: 20px;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .error-message {
+            color: #d9480f;
+            font-size: 0.9rem;
+            height: 1.2em;
+        }
+
+        .switch-user-button {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer;
+        }
+
+        .header-icons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .clear-history-button, .switch-user-button {
+            position: static;
+            transform: none;
+            background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer;
+        }
+
+        /* --- Emoji Picker Styles --- */
+        .emoji-picker {
+            position: absolute;
+            bottom: 100%; /* Position above the input area */
+            left: 15px;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+            padding: 10px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 5px;
+            width: calc(100% - 30px);
+            max-width: 350px;
+            opacity: 0;
+            transform: translateY(10px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .emoji-picker.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .emoji-picker span {
+            cursor: pointer;
+            font-size: 1.5rem;
+            text-align: center;
+            padding: 5px;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+        .emoji-picker span:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* --- Main Page Header --- */
+        .main-header {
+            font-size: 2.8rem;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 105, 180, 0.7), 0 0 20px rgba(255, 105, 180, 0.5);
+            animation: pulseHeader 2.5s infinite ease-in-out;
+            text-align: center;
+        }
+
+        @keyframes pulseHeader {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        /* --- Responsive Design --- */
+        @media (max-width: 768px) {
+            /* Adjust selection screen for mobile */
+            .selection-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .main-header {
+                font-size: 2.2rem;
+            }
+
+            .user-selection-box {
+                width: 80vw;
+                max-width: 320px;
+                height: 120px;
+                font-size: 1.3rem;
+            }
+
+            /* Make chat view full-screen on mobile */
+            .chat-app-container {
+                width: 100%;
+                height: 100%;
+                padding: 0;
+                display: block; /* Override the desktop flex layout */
+            }
+
+            .chat-box {
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+                border: none;
+            }
+
+            .chat-header {
+                border-radius: 0;
+            }
+
+            .chat-input-area {
+                padding: 10px; /* Reduce padding on mobile */
+                align-items: center; /* Vertically align items */
+            }
+
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Container for the animated hearts -->
+    <div class="hearts-container"></div>
+
+    <!-- Initial selection screen -->
+    <div class="selection-container" id="selection-container">
+        <h1 class="main-header">💕 Love Chatting 💕</h1>
+        <div class="user-selection-box" data-user="raushan">
+            ❤️ Raushan_143 ❤️
+            <span class="notification-badge hidden" id="raushan-notification"></span>
+        </div>
+        <div class="user-selection-box" data-user="nisha">
+            💖 Nisha_143 💖
+            <span class="notification-badge hidden" id="nisha-notification"></span>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div class="login-modal-overlay" id="login-modal">
+        <div class="login-box">
+            <h2 id="login-for-user">Secret Login</h2>
+            <form id="login-form">
+                <input type="password" id="password-input" placeholder="Enter Password" required>
+                <p class="error-message" id="error-message">&nbsp;</p>
+                <button type="submit" class="send-icon-button" style="background: #d6336c; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Unlock Chat</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main container for the two chat boxes -->
+    <div class="chat-app-container hidden" id="chat-app-container">
+
+        <!-- Raushan's Chat Box -->
+        <div class="chat-box" id="raushan-chat">
+            <div class="chat-header">
+                <span>❤️ Raushan_143 ❤️</span>
+                <div class="header-icons">
+                    <button class="clear-history-button" title="Clear History">🗑️</button>
+                    <button class="switch-user-button" title="Switch User">↩️</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="raushan-messages">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="typing-indicator" id="raushan-typing-indicator">
+                <span></span><span></span><span></span>
+            </div>
+            <form class="chat-input-area" id="raushan-form">
+                <input type="file" id="raushan-image-input" class="hidden" accept="image/*">
+                <button type="button" class="attach-button" data-user="raushan" title="Attach Image">📎</button>
+                <button type="button" class="emoji-button" data-user="raushan">😊</button>
+                <input type="text" id="raushan-input" class="chat-input" placeholder="Type a message...">
+                <div class="emoji-picker" id="raushan-emoji-picker"></div>
+                <button type="submit" class="send-icon-button" title="Send">➤</button>
+            </form>
+        </div>
+
+        <!-- Nisha's Chat Box -->
+        <div class="chat-box" id="nisha-chat">
+            <div class="chat-header">
+                <span>💖 Nisha_143 💖</span>
+                <div class="header-icons">
+                    <button class="clear-history-button" title="Clear History">🗑️</button>
+                    <button class="switch-user-button" title="Switch User">↩️</button>
+                </div>
+            </div>
+            <div class="chat-messages" id="nisha-messages">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="typing-indicator" id="nisha-typing-indicator">
+                <span></span><span></span><span></span>
+            </div>
+            <form class="chat-input-area" id="nisha-form">
+                <input type="file" id="nisha-image-input" class="hidden" accept="image/*">
+                <button type="button" class="attach-button" data-user="nisha" title="Attach Image">📎</button>
+                <button type="button" class="emoji-button" data-user="nisha">😊</button>
+                <input type="text" id="nisha-input" class="chat-input" placeholder="Type a message...">
+                <div class="emoji-picker" id="nisha-emoji-picker"></div>
+                <button type="submit" class="send-icon-button" title="Send">➤</button>
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Animated Hearts ---
+            const emojiContainer = document.querySelector('.hearts-container');
+            const loveEmojis = ['❤️', '💖', '🥰', '😍', '😘', '💌', '✨', '💫', '💕', '💞'];
+            const emojiCount = 40; // Number of emojis
+
+            for (let i = 0; i < emojiCount; i++) {
+                const emoji = document.createElement('div');
+                emoji.classList.add('emoji-float');
+                // Pick a random emoji from the array
+                emoji.innerHTML = loveEmojis[Math.floor(Math.random() * loveEmojis.length)];
+                emoji.style.left = `${Math.random() * 100}vw`;
+                emoji.style.animationDuration = `${Math.random() * 8 + 7}s`; // 7 to 15 seconds for varied speed
+                emoji.style.animationDelay = `${Math.random() * 7}s`;
+                emoji.style.fontSize = `${Math.random() * 1.5 + 1}rem`; // 1rem to 2.5rem
+                emojiContainer.appendChild(emoji);
+            }
+
+            // --- Chat Functionality ---
+            const raushanForm = document.getElementById('raushan-form');
+            const raushanInput = document.getElementById('raushan-input');
+            const raushanMessages = document.getElementById('raushan-messages');
+
+            const nishaForm = document.getElementById('nisha-form');
+            const nishaInput = document.getElementById('nisha-input');
+            const nishaMessages = document.getElementById('nisha-messages');
+
+            const raushanTypingIndicator = document.getElementById('raushan-typing-indicator');
+            const nishaTypingIndicator = document.getElementById('nisha-typing-indicator');
+
+            // New elements for login flow
+            const selectionContainer = document.getElementById('selection-container');
+            const chatAppContainer = document.getElementById('chat-app-container');
+            const loginModal = document.getElementById('login-modal');
+            const loginForm = document.getElementById('login-form');
+            const passwordInput = document.getElementById('password-input');
+            const errorMessage = document.getElementById('error-message');
+            const loginForUser = document.getElementById('login-for-user');
+            const userSelectionBoxes = document.querySelectorAll('.user-selection-box');
+            const switchUserButtons = document.querySelectorAll('.switch-user-button');
+            const clearHistoryButtons = document.querySelectorAll('.clear-history-button');
+
+            // New elements for emoji picker
+            const emojiButtons = document.querySelectorAll('.emoji-button');
+            const emojiPickers = document.querySelectorAll('.emoji-picker');
+            const EMOJI_LIST = [
+                '❤️', '💖', '🥰', '😍', '😘', '💌', '✨', '💫', '💕', '💞', '😊', '😂', '😭', '🤔',
+                '👍', '🙏', '🎉', '🥳', '🔥', '💯', '👀', '👋', '🥺', '😇', '😎', '😜', '🤗', '🤫'
+            ];
+
+            // New elements for image sending
+            const attachButtons = document.querySelectorAll('.attach-button');
+            const imageInputs = document.querySelectorAll('input[type="file"]');
+
+            let activeUser = null;
+            const PASSWORDS = {
+                raushan: "4gh4m01r",
+                nisha: "4gh4m01r"
+            };
+
+            let messages = []; // This will hold our chat history objects
+            const CHAT_HISTORY_KEY = 'secretChatHistory';
+            const UNREAD_STATUS_KEY = 'secretChatUnreadStatus';
+
+            let raushanTypingTimer;
+            let nishaTypingTimer;
+
+            function saveChatHistory() {
+                localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
+            }
+            
+            function formatSeenDate(isoString) {
+                const date = new Date(isoString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                const year = date.getFullYear();
+                return `${day}-${month}-${year}`;
+            }
+
+            function formatSeenTime(isoString) {
+                const date = new Date(isoString);
+                // HH:MM:SS format
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            }
+
+            function updateUnreadStatus(recipient) {
+                const status = getUnreadStatus();
+                status[recipient] = (status[recipient] || 0) + 1;
+                localStorage.setItem(UNREAD_STATUS_KEY, JSON.stringify(status));
+            }
+
+            function getUnreadStatus() {
+                return JSON.parse(localStorage.getItem(UNREAD_STATUS_KEY)) || { raushan: 0, nisha: 0 };
+            }
+
+            function clearUnreadStatus(user) {
+                const status = getUnreadStatus();
+                status[user] = 0;
+                localStorage.setItem(UNREAD_STATUS_KEY, JSON.stringify(status));
+            }
+
+            // Function to add a message to both chat windows
+            function addMessage(messageData, isNewMessage = false) {
+                const { sender, content, timeString, id } = messageData;
+                if (!content.text?.trim() && !content.imageUrl) return; // Don't send empty messages
+
+                if (isNewMessage) {
+                    if (messages.length >= 20) messages.shift(); // Keep only the last 20 messages
+                    messages.push(messageData);
+                    saveChatHistory();
+                    const recipient = sender === 'raushan' ? 'nisha' : 'raushan';
+                    updateUnreadStatus(recipient);
+                }
+
+                // Function to create a message element with content and timestamp
+                const createMessageElement = (msgContent) => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.classList.add('message');
+
+                    if (msgContent.imageUrl) {
+                        const imageEl = document.createElement('img');
+                        imageEl.src = msgContent.imageUrl;
+                        imageEl.className = 'message-image';
+                        messageDiv.appendChild(imageEl);
+                    }
+
+                    if (msgContent.text?.trim()) {
+                        const contentSpan = document.createElement('span');
+                        contentSpan.className = 'message-content';
+                        contentSpan.textContent = msgContent.text;
+                        messageDiv.appendChild(contentSpan);
+                    }
+
+                    // Add a placeholder for the status checkmark on sent messages
+                    messageDiv.statusElement = document.createElement('span');
+                    messageDiv.statusElement.className = 'message-status';
+
+                    return messageDiv;
+                };
+                const createMetaElement = () => {
+                    const metaDiv = document.createElement('div');
+                    metaDiv.className = 'message-meta';
+
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'message-timestamp';
+                    timeSpan.textContent = timeString;
+                    metaDiv.appendChild(timeSpan);
+                    return metaDiv;
+                };
+
+                // Create message for Raushan's window
+                const raushanMessage = createMessageElement({ ...content });
+                // Create message for Nisha's window
+                const nishaMessage = createMessageElement({ ...content });
+
+                if (sender === 'raushan') {
+                    raushanMessage.classList.add('sent');
+                    nishaMessage.classList.add('received');
+
+                    // Add status to the sender's message
+                    const senderMeta = createMetaElement();
+                    raushanMessage.statusElement.innerHTML = '✓'; // Sent (single check)
+                    senderMeta.appendChild(raushanMessage.statusElement);
+                    raushanMessage.appendChild(senderMeta);
+                    
+                    const handleSeen = () => {
+                        raushanMessage.statusElement.innerHTML = '✓✓';
+                        raushanMessage.statusElement.classList.add('seen');
+                        
+                        // Use the data from the message object being rendered
+                        if (messageData.seenAt) {
+                            const seenInfoDiv = document.createElement('div');
+                            seenInfoDiv.className = 'message-seen-info';
+                            const seenDateSpan = document.createElement('span');
+                            seenDateSpan.textContent = formatSeenDate(messageData.seenAt);
+                            const seenTimeSpan = document.createElement('span');
+                            seenTimeSpan.textContent = formatSeenTime(messageData.seenAt);
+                            seenInfoDiv.appendChild(seenDateSpan);
+                            seenInfoDiv.appendChild(seenTimeSpan);
+                            raushanMessage.appendChild(seenInfoDiv);
+                        }
+                    };
+
+                    if (messageData.isSeen) handleSeen();
+
+                    // Add meta to receiver's message (without status)
+                    nishaMessage.appendChild(createMetaElement());
+
+                } else {
+                    raushanMessage.classList.add('received');
+                    nishaMessage.classList.add('sent');
+
+                    // Add meta to receiver's message (without status)
+                    raushanMessage.appendChild(createMetaElement());
+
+                    // Add status to the sender's message
+                    const senderMeta = createMetaElement();
+                    nishaMessage.statusElement.innerHTML = '✓'; // Sent (single check)
+                    senderMeta.appendChild(nishaMessage.statusElement);
+                    nishaMessage.appendChild(senderMeta);
+
+                    const handleSeen = () => {
+                        nishaMessage.statusElement.innerHTML = '✓✓';
+                        nishaMessage.statusElement.classList.add('seen');
+
+                        // Use the data from the message object being rendered
+                        if (messageData.seenAt) {
+                            const seenInfoDiv = document.createElement('div');
+                            seenInfoDiv.className = 'message-seen-info';
+                            const seenDateSpan = document.createElement('span');
+                            seenDateSpan.textContent = formatSeenDate(messageData.seenAt);
+                            const seenTimeSpan = document.createElement('span');
+                            seenTimeSpan.textContent = formatSeenTime(messageData.seenAt);
+                            seenInfoDiv.appendChild(seenDateSpan);
+                            seenInfoDiv.appendChild(seenTimeSpan);
+                            nishaMessage.appendChild(seenInfoDiv);
+                        }
+                    };
+
+                    if (messageData.isSeen) handleSeen();
+                }
+
+                raushanMessages.appendChild(raushanMessage);
+                nishaMessages.appendChild(nishaMessage);
+
+                // Scroll to the bottom
+                raushanMessages.scrollTop = raushanMessages.scrollHeight;
+                nishaMessages.scrollTop = nishaMessages.scrollHeight;
+            }
+
+            // Event listener for Raushan's form
+            raushanForm.addEventListener('submit', (e) => {
+                e.preventDefault(); // Prevent page reload
+                const messageData = {
+                    id: Date.now(),
+                    sender: 'raushan',
+                    content: { text: raushanInput.value },
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    isSeen: false
+                };
+                addMessage(messageData, true);
+                clearTimeout(raushanTypingTimer); // Stop the typing timer
+                nishaTypingIndicator.classList.remove('visible'); // Hide indicator on send
+                raushanInput.value = ''; // Clear input field
+            });
+
+            // Event listener for Nisha's form
+            nishaForm.addEventListener('submit', (e) => {
+                e.preventDefault(); // Prevent page reload
+                const messageData = {
+                    id: Date.now(),
+                    sender: 'nisha',
+                    content: { text: nishaInput.value },
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    isSeen: false
+                };
+                addMessage(messageData, true);
+                clearTimeout(nishaTypingTimer); // Stop the typing timer
+                raushanTypingIndicator.classList.remove('visible'); // Hide indicator on send
+                nishaInput.value = ''; // Clear input field
+            });
+            
+            // --- Typing Indicator Logic ---
+            raushanInput.addEventListener('input', () => {
+                nishaTypingIndicator.classList.add('visible');
+                nishaMessages.scrollTop = nishaMessages.scrollHeight; // Scroll to show it
+                clearTimeout(raushanTypingTimer);
+                raushanTypingTimer = setTimeout(() => {
+                    nishaTypingIndicator.classList.remove('visible');
+                }, 2000); // Hide after 2 seconds of inactivity
+            });
+
+            nishaInput.addEventListener('input', () => {
+                raushanTypingIndicator.classList.add('visible');
+                raushanMessages.scrollTop = raushanMessages.scrollHeight; // Scroll to show it
+                clearTimeout(nishaTypingTimer);
+                nishaTypingTimer = setTimeout(() => {
+                    raushanTypingIndicator.classList.remove('visible');
+                }, 2000); // Hide after 2 seconds of inactivity
+            });
+
+            // --- Image Sending Logic ---
+            attachButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const user = button.dataset.user;
+                    // Programmatically click the hidden file input
+                    document.getElementById(`${user}-image-input`).click();
+                });
+            });
+
+            imageInputs.forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const imageUrl = event.target.result;
+                        const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
+                        const messageData = {
+                            id: Date.now(),
+                            sender: user,
+                            content: { imageUrl: imageUrl },
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            isSeen: false
+                        };
+                        addMessage(messageData, true);
+                    };
+                    reader.readAsDataURL(file);
+
+                    e.target.value = ''; // Reset input so the same file can be selected again
+                });
+            });
+
+            // --- Emoji Picker Logic ---
+            function populateEmojiPickers() {
+                emojiPickers.forEach(picker => {
+                    EMOJI_LIST.forEach(emoji => {
+                        const emojiSpan = document.createElement('span');
+                        emojiSpan.textContent = emoji;
+                        emojiSpan.addEventListener('click', () => {
+                            const user = picker.id.includes('raushan') ? 'raushan' : 'nisha';
+                            const inputField = document.getElementById(`${user}-input`);
+                            inputField.value += emoji;
+                            inputField.focus();
+                        });
+                        picker.appendChild(emojiSpan);
+                    });
+                });
+            }
+
+            emojiButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent the click from closing the picker immediately
+                    const user = button.dataset.user;
+                    const picker = document.getElementById(`${user}-emoji-picker`);
+                    // Hide other pickers
+                    emojiPickers.forEach(p => { if (p !== picker) p.classList.remove('visible'); });
+                    // Toggle current picker
+                    picker.classList.toggle('visible');
+                });
+            });
+
+            // Close emoji picker when clicking anywhere else
+            document.addEventListener('click', () => {
+                emojiPickers.forEach(picker => picker.classList.remove('visible'));
+            });
+
+            populateEmojiPickers(); // Initialize the emoji pickers on load
+
+            // --- Login and View Switching Logic ---
+            userSelectionBoxes.forEach(box => {
+                box.addEventListener('click', () => {
+                    activeUser = box.dataset.user;
+                    loginForUser.textContent = `Login for ${activeUser.charAt(0).toUpperCase() + activeUser.slice(1)}_143`;
+                    loginModal.classList.add('visible');
+                    setTimeout(() => passwordInput.focus(), 100);
+                });
+            });
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (passwordInput.value === PASSWORDS[activeUser]) {
+                    // Correct password
+                    loginModal.classList.remove('visible');
+                    selectionContainer.classList.add('hidden');
+                    chatAppContainer.classList.remove('hidden');
+                    handleUserLogin(activeUser);
+
+                    if (activeUser === 'raushan') {
+                        document.getElementById('raushan-chat').classList.remove('hidden');
+                        document.getElementById('nisha-chat').classList.add('hidden');
+                    } else {
+                        document.getElementById('nisha-chat').classList.remove('hidden');
+                        document.getElementById('raushan-chat').classList.add('hidden');
+                    }
+                    // Reset form
+                    passwordInput.value = '';
+                    errorMessage.innerHTML = '&nbsp;';
+                } else {
+                    // Incorrect password
+                    errorMessage.textContent = 'Incorrect Password!';
+                    loginForm.classList.add('shake');
+                    setTimeout(() => loginForm.classList.remove('shake'), 500);
+                }
+            });
+
+            // Close modal if clicking outside the login box
+            loginModal.addEventListener('click', (e) => {
+                if (e.target === loginModal) {
+                    loginModal.classList.remove('visible');
+                    errorMessage.innerHTML = '&nbsp;';
+                }
+            });
+
+            switchUserButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    chatAppContainer.classList.add('hidden');
+                    selectionContainer.classList.remove('hidden');
+                    activeUser = null;
+                });
+            });
+
+            // --- Clear History Logic ---
+            clearHistoryButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+                        messages.length = 0; // Clear the array
+                        localStorage.removeItem(CHAT_HISTORY_KEY); // Clear storage
+                        raushanMessages.innerHTML = ''; // Clear DOM
+                        nishaMessages.innerHTML = ''; // Clear DOM
+                        localStorage.removeItem(UNREAD_STATUS_KEY); // Also clear unread status
+                        updateNotificationBadges();
+                    }
+                });
+            });
+
+            // --- New Notification Logic ---
+            function updateNotificationBadges() {
+                const status = getUnreadStatus();
+                const raushanBadge = document.getElementById('raushan-notification');
+                const nishaBadge = document.getElementById('nisha-notification');
+
+                raushanBadge.textContent = status.raushan > 0 ? status.raushan : '';
+                raushanBadge.classList.toggle('hidden', status.raushan === 0);
+
+                nishaBadge.textContent = status.nisha > 0 ? status.nisha : '';
+                nishaBadge.classList.toggle('hidden', status.nisha === 0);
+            }
+
+            function handleUserLogin(user) {
+                const otherUser = user === 'raushan' ? 'nisha' : 'raushan';
+                let historyChanged = false;
+                messages.forEach(msg => {
+                    if (msg.sender === otherUser && !msg.isSeen) {
+                        msg.isSeen = true;
+                        msg.seenAt = new Date().toISOString();
+                        historyChanged = true;
+                    }
+                });
+                if (historyChanged) saveChatHistory();
+                clearUnreadStatus(user);
+                updateNotificationBadges();
+
+                // If history changed, re-render the messages to update the 'seen' ticks
+                raushanMessages.innerHTML = '';
+                nishaMessages.innerHTML = '';
+                messages.forEach(msg => addMessage(msg, false));
+            }
+
+            // --- Load and Render Initial Data ---
+            function initializeApp() {
+                const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
+                if (savedHistory) {
+                    messages = JSON.parse(savedHistory).slice(-20); // Load only the last 20 messages
+                    messages.forEach(msg => addMessage(msg, false)); // Render existing messages
+                }
+                updateNotificationBadges();
+            }
+
+            initializeApp();
+
+        });
+    </script>
+
+</body>
+</html>

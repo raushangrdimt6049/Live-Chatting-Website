@@ -494,7 +494,7 @@
                 gap: 20px;
             }
             .main-header {
-                font-size: 2.2rem;
+                font-size: 1.9rem;
             }
 
             .user-selection-box {
@@ -532,6 +532,48 @@
                 max-width: 85%;
             }
         }
+
+        /* --- Image Zoom Modal --- */
+        .image-zoom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-zoom-modal-overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #zoomed-image {
+            max-width: 90vw;
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+        }
+
+        .close-zoom-button {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #fff;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
     </style>
 </head>
 <body>
@@ -562,6 +604,12 @@
                 <button type="submit" class="send-icon-button" style="background: #d6336c; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Unlock Chat</button>
             </form>
         </div>
+    </div>
+
+    <!-- Image Zoom Modal -->
+    <div id="image-zoom-modal" class="image-zoom-modal-overlay hidden">
+        <span class="close-zoom-button">&times;</span>
+        <img id="zoomed-image" src="" alt="Zoomed Image">
     </div>
 
     <!-- Main container for the two chat boxes -->
@@ -677,6 +725,11 @@
             const attachButtons = document.querySelectorAll('.attach-button');
             const imageInputs = document.querySelectorAll('input[type="file"]');
 
+            // New elements for image zoom
+            const imageZoomModal = document.getElementById('image-zoom-modal');
+            const zoomedImage = document.getElementById('zoomed-image');
+            const closeZoomButton = document.querySelector('.close-zoom-button');
+
             let activeUser = null;
             const PASSWORDS = {
                 raushan: "4gh4m01r",
@@ -746,6 +799,12 @@
                         const imageEl = document.createElement('img');
                         imageEl.src = msgContent.imageUrl;
                         imageEl.className = 'message-image';
+                        // Add click listener for zoom
+                        imageEl.addEventListener('click', () => {
+                            zoomedImage.src = imageEl.src;
+                            imageZoomModal.classList.remove('hidden');
+                            imageZoomModal.classList.add('visible');
+                        });
                         messageDiv.appendChild(imageEl);
                     }
 
@@ -986,6 +1045,16 @@
             });
 
             populateEmojiPickers(); // Initialize the emoji pickers on load
+
+            // --- Image Zoom Logic ---
+            const closeZoomModal = () => {
+                imageZoomModal.classList.remove('visible');
+                // Use a timeout to allow the fade-out animation to complete before hiding
+                setTimeout(() => imageZoomModal.classList.add('hidden'), 300);
+            };
+
+            closeZoomButton.addEventListener('click', closeZoomModal);
+            imageZoomModal.addEventListener('click', (e) => { if (e.target === imageZoomModal) closeZoomModal(); });
 
             // --- Login and View Switching Logic ---
             userSelectionBoxes.forEach(box => {

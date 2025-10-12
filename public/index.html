@@ -680,9 +680,17 @@
                 nisha: "4gh4m01r"
             };
 
+            let messages = []; // This will hold our chat history objects
+            const CHAT_HISTORY_KEY = 'secretChatHistory';
+            const UNREAD_STATUS_KEY = 'secretChatUnreadStatus';
+
             let raushanTypingTimer;
             let nishaTypingTimer;
 
+            function saveChatHistory() {
+                localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
+            }
+            
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
                 const day = String(date.getDate()).padStart(2, '0');
@@ -697,10 +705,34 @@
                 return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             }
 
+            function updateUnreadStatus(recipient) {
+                const status = getUnreadStatus();
+                status[recipient] = (status[recipient] || 0) + 1;
+                localStorage.setItem(UNREAD_STATUS_KEY, JSON.stringify(status));
+            }
+
+            function getUnreadStatus() {
+                return JSON.parse(localStorage.getItem(UNREAD_STATUS_KEY)) || { raushan: 0, nisha: 0 };
+            }
+
+            function clearUnreadStatus(user) {
+                const status = getUnreadStatus();
+                status[user] = 0;
+                localStorage.setItem(UNREAD_STATUS_KEY, JSON.stringify(status));
+            }
+
             // Function to add a message to both chat windows
-            function addMessage(messageData) {
-                const { sender, content, time_string: timeString, id, is_seen: isSeen, seen_at: seenAt } = messageData;
+            function addMessage(messageData, isNewMessage = false) {
+                const { sender, content, timeString, id } = messageData;
                 if (!content.text?.trim() && !content.imageUrl) return; // Don't send empty messages
+
+                if (isNewMessage) {
+                    if (messages.length >= 20) messages.shift(); // Keep only the last 20 messages
+                    messages.push(messageData);
+                    saveChatHistory();
+                    const recipient = sender === 'raushan' ? 'nisha' : 'raushan';
+                    updateUnreadStatus(recipient);
+                }
 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => {
@@ -758,20 +790,20 @@
                         raushanMessage.statusElement.classList.add('seen');
                         
                         // Use the data from the message object being rendered
-                        if (seenAt) {
+                        if (messageData.seenAt) {
                             const seenInfoDiv = document.createElement('div');
                             seenInfoDiv.className = 'message-seen-info';
                             const seenDateSpan = document.createElement('span');
-                            seenDateSpan.textContent = formatSeenDate(seenAt);
+                            seenDateSpan.textContent = formatSeenDate(messageData.seenAt);
                             const seenTimeSpan = document.createElement('span');
-                            seenTimeSpan.textContent = formatSeenTime(seenAt);
+                            seenTimeSpan.textContent = formatSeenTime(messageData.seenAt);
                             seenInfoDiv.appendChild(seenDateSpan);
                             seenInfoDiv.appendChild(seenTimeSpan);
                             raushanMessage.appendChild(seenInfoDiv);
                         }
                     };
 
-                    if (isSeen) handleSeen();
+                    if (messageData.isSeen) handleSeen();
 
                     // Add meta to receiver's message (without status)
                     nishaMessage.appendChild(createMetaElement());
@@ -794,20 +826,20 @@
                         nishaMessage.statusElement.classList.add('seen');
 
                         // Use the data from the message object being rendered
-                        if (seenAt) {
+                        if (messageData.seenAt) {
                             const seenInfoDiv = document.createElement('div');
                             seenInfoDiv.className = 'message-seen-info';
                             const seenDateSpan = document.createElement('span');
-                            seenDateSpan.textContent = formatSeenDate(seenAt);
+                            seenDateSpan.textContent = formatSeenDate(messageData.seenAt);
                             const seenTimeSpan = document.createElement('span');
-                            seenTimeSpan.textContent = formatSeenTime(seenAt);
+                            seenTimeSpan.textContent = formatSeenTime(messageData.seenAt);
                             seenInfoDiv.appendChild(seenDateSpan);
                             seenInfoDiv.appendChild(seenTimeSpan);
                             nishaMessage.appendChild(seenInfoDiv);
                         }
                     };
 
-                    if (isSeen) handleSeen();
+                    if (messageData.isSeen) handleSeen();
                 }
 
                 raushanMessages.appendChild(raushanMessage);
@@ -819,62 +851,38 @@
             }
 
             // Event listener for Raushan's form
-            raushanForm.addEventListener('submit', async (e) => {
+            raushanForm.addEventListener('submit', (e) => {
                 e.preventDefault(); // Prevent page reload
                 const messageData = {
+                    id: Date.now(),
                     sender: 'raushan',
                     content: { text: raushanInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    isSeen: false
                 };
-                
-                // Send message to the server
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(messageData)
-                });
-
+                addMessage(messageData, true);
                 clearTimeout(raushanTypingTimer); // Stop the typing timer
                 nishaTypingIndicator.classList.remove('visible'); // Hide indicator on send
                 raushanInput.value = ''; // Clear input field
             });
 
             // Event listener for Nisha's form
-            nishaForm.addEventListener('submit', async (e) => {
+            nishaForm.addEventListener('submit', (e) => {
                 e.preventDefault(); // Prevent page reload
                 const messageData = {
+                    id: Date.now(),
                     sender: 'nisha',
                     content: { text: nishaInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    isSeen: false
                 };
-
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(messageData)
-                });
-
+                addMessage(messageData, true);
                 clearTimeout(nishaTypingTimer); // Stop the typing timer
                 raushanTypingIndicator.classList.remove('visible'); // Hide indicator on send
                 nishaInput.value = ''; // Clear input field
             });
 
-            function setupWebSocket() {
-                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${wsProtocol}//${window.location.host}`;
-                const socket = new WebSocket(wsUrl);
-
-                socket.onmessage = (event) => {
-                    const messageData = JSON.parse(event.data);
-                    addMessage(messageData);
-                };
-
-                socket.onclose = () => {
-                    console.log('WebSocket disconnected. Attempting to reconnect...');
-                    setTimeout(setupWebSocket, 3000); // Reconnect after 3 seconds
-                };
-            }
-
+            // --- Send message on Enter key press ---
             raushanInput.addEventListener('keydown', (e) => {
                 // Check if Enter key is pressed and Shift key is not pressed
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -919,25 +927,22 @@
             });
 
             imageInputs.forEach(input => {
-                input.addEventListener('change', async (e) => {
+                input.addEventListener('change', (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = async (event) => {
+                    reader.onload = (event) => {
                         const imageUrl = event.target.result;
                         const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
                         const messageData = {
+                            id: Date.now(),
                             sender: user,
                             content: { imageUrl: imageUrl },
-                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            isSeen: false
                         };
-                        
-                        await fetch('/api/messages', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(messageData)
-                        });
+                        addMessage(messageData, true);
                     };
                     reader.readAsDataURL(file);
 
@@ -998,7 +1003,7 @@
                     loginModal.classList.remove('visible');
                     selectionContainer.classList.add('hidden');
                     chatAppContainer.classList.remove('hidden');
-                    setupWebSocket(); // Connect to WebSocket on successful login
+                    handleUserLogin(activeUser);
 
                     if (activeUser === 'raushan') {
                         document.getElementById('raushan-chat').classList.remove('hidden');
@@ -1038,19 +1043,57 @@
             clearHistoryButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     if (confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
-                        // This will be implemented with a backend call
-                        console.log("Clear history clicked");
+                        messages.length = 0; // Clear the array
+                        localStorage.removeItem(CHAT_HISTORY_KEY); // Clear storage
+                        raushanMessages.innerHTML = ''; // Clear DOM
+                        nishaMessages.innerHTML = ''; // Clear DOM
+                        localStorage.removeItem(UNREAD_STATUS_KEY); // Also clear unread status
+                        updateNotificationBadges();
                     }
                 });
             });
 
-            // --- Load and Render Initial Data ---
-            async function initializeApp() {
-                const response = await fetch('/api/messages');
-                const messages = await response.json();
+            // --- New Notification Logic ---
+            function updateNotificationBadges() {
+                const status = getUnreadStatus();
+                const raushanBadge = document.getElementById('raushan-notification');
+                const nishaBadge = document.getElementById('nisha-notification');
+
+                raushanBadge.textContent = status.raushan > 0 ? status.raushan : '';
+                raushanBadge.classList.toggle('hidden', status.raushan === 0);
+
+                nishaBadge.textContent = status.nisha > 0 ? status.nisha : '';
+                nishaBadge.classList.toggle('hidden', status.nisha === 0);
+            }
+
+            function handleUserLogin(user) {
+                const otherUser = user === 'raushan' ? 'nisha' : 'raushan';
+                let historyChanged = false;
+                messages.forEach(msg => {
+                    if (msg.sender === otherUser && !msg.isSeen) {
+                        msg.isSeen = true;
+                        msg.seenAt = new Date().toISOString();
+                        historyChanged = true;
+                    }
+                });
+                if (historyChanged) saveChatHistory();
+                clearUnreadStatus(user);
+                updateNotificationBadges();
+
+                // If history changed, re-render the messages to update the 'seen' ticks
                 raushanMessages.innerHTML = '';
                 nishaMessages.innerHTML = '';
-                messages.forEach(msg => addMessage(msg));
+                messages.forEach(msg => addMessage(msg, false));
+            }
+
+            // --- Load and Render Initial Data ---
+            function initializeApp() {
+                const savedHistory = localStorage.getItem(CHAT_HISTORY_KEY);
+                if (savedHistory) {
+                    messages = JSON.parse(savedHistory).slice(-20); // Load only the last 20 messages
+                    messages.forEach(msg => addMessage(msg, false)); // Render existing messages
+                }
+                updateNotificationBadges();
             }
 
             initializeApp();

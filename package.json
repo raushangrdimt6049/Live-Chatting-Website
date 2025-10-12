@@ -1,0 +1,16 @@
+{
+  "name": "love-chat-backend",
+  "version": "1.0.0",
+  "description": "Backend for the Love Chatting application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.11.3",
+    "ws": "^8.13.0"
+  }
+}

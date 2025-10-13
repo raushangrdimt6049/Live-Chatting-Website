@@ -261,22 +261,22 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            width: 100%;
-            max-width: 280px;
+            width: 100%; /* Take full width of its container */
+            max-width: 400px; /* Further increased length */
             padding: 5px 0;
         }
 
         .play-pause-btn {
             background: #d6336c;
             border: none;
-            width: 40px;
-            height: 40px;
+            width: 30px; /* Decreased height */
+            height: 30px; /* Decreased height */
             border-radius: 50%;
             color: white;
-            font-size: 1.2rem; /* Adjusted for icon size */
+            font-size: 1rem; /* Adjusted for smaller button */
             cursor: pointer;
             padding: 0;
-            line-height: 1;
+            line-height: 0; /* Helps center the icon */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -288,30 +288,41 @@
             background-color: #e9ecef;
             color: #d6336c;
         }
-
-        .progress-bar-container {
+        
+        .waveform-container {
+            display: flex;
+            align-items: center;
+            height: 30px; /* Match play button height */
             flex-grow: 1;
-            height: 5px;
-            background-color: rgba(0, 0, 0, 0.1);
-            border-radius: 3px;
+            gap: 2px;
             cursor: pointer;
-            position: relative;
-        }
-        .message.sent .progress-bar-container {
-            background-color: rgba(255, 255, 255, 0.3);
         }
 
-        .progress-bar {
-            height: 100%;
-            width: 0;
-            background-color: #fff;
-            border-radius: 3px;
-            position: relative;
+        .waveform-bar {
+            width: 3px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 2px;
+            transition: background-color 0.05s linear;
         }
-        .message.received .progress-bar {
+
+        .message.sent .waveform-bar {
+            background-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .waveform-bar.played {
+            background-color: #fff; /* Active color for sent messages */
+        }
+
+        .message.received .waveform-bar.played {
             background-color: #d6336c;
         }
 
+        .audio-duration {
+            font-size: 0.75rem;
+            color: rgba(0, 0, 0, 0.5);
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
 
         .message-timestamp {
             font-size: 0.75rem;
@@ -319,27 +330,24 @@
             align-self: flex-end;
         }
 
-        .progress-thumb {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background-color: #fff;
-            position: absolute;
-            right: -6px; /* Half of its width to center it on the end of the progress bar */
-            top: 50%;
-            transform: translateY(-50%);
-        }
-        .message.received .progress-thumb {
-            background-color: #d6336c;
+        .message.sent .audio-duration {
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .message-meta {
             display: flex;
             align-items: center;
-            align-self: flex-end;
+            justify-content: space-between; /* Pushes children to opposite ends */
+            width: 100%; /* Ensure it takes full width */
             margin-top: 5px;
+        }
+
+        .message-meta-right {
+            display: flex;
+            align-items: center;
             gap: 5px;
         }
+
 
         .message-status {
             font-size: 0.9rem;
@@ -1096,53 +1104,71 @@
                         const playBtn = document.createElement('button');
                         playBtn.className = 'play-pause-btn';
                         playBtn.innerHTML = '▶'; // Play icon
+                        
+                        const waveformContainer = document.createElement('div');
+                        waveformContainer.className = 'waveform-container';
+                        const waveformBars = [];
+                        const barCount = 40; // Number of bars in the waveform
+                        for (let i = 0; i < barCount; i++) {
+                            const bar = document.createElement('div');
+                            bar.className = 'waveform-bar';
+                            // Randomize height for a static waveform look
+                            bar.style.height = `${Math.random() * 80 + 20}%`;
+                            waveformContainer.appendChild(bar);
+                            waveformBars.push(bar);
+                        }
 
-                        const progressContainer = document.createElement('div');
-                        progressContainer.className = 'progress-bar-container';
-                        const progressBar = document.createElement('div');
-                        progressBar.className = 'progress-bar';
-                        const progressThumb = document.createElement('div');
-                        progressThumb.className = 'progress-thumb';
-                        progressBar.appendChild(progressThumb);
-                        progressContainer.appendChild(progressBar);
+                        const durationEl = document.createElement('span');
+                        durationEl.className = 'audio-duration';
 
-                        playerDiv.appendChild(playBtn);
-                        playerDiv.appendChild(progressContainer);
-                        messageDiv.appendChild(playerDiv);
 
                         // --- Custom Player Logic ---
+                        const formatTime = (time) => {
+                            const minutes = Math.floor(time / 60);
+                            const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+                            return `${minutes}:${seconds}`;
+                        };
+
                         audioEl.addEventListener('loadedmetadata', () => {
-                            const minutes = Math.floor(audioEl.duration / 60);
-                            const seconds = Math.floor(audioEl.duration % 60).toString().padStart(2, '0');
-                            if (audioDurationSpan) audioDurationSpan.textContent = `${minutes}:${seconds}`;
+                            durationEl.textContent = formatTime(audioEl.duration);
                         });
 
                         playBtn.addEventListener('click', () => {
                             if (audioEl.paused) {
                                 audioEl.play();
-                                playBtn.innerHTML = '⏸'; // Pause icon
+                                playBtn.innerHTML = '⏸';
                             } else {
                                 audioEl.pause();
-                                playBtn.innerHTML = '▶'; // Play icon
+                                playBtn.innerHTML = '▶';
                             }
                         });
 
                         audioEl.addEventListener('timeupdate', () => {
-                            const progress = (audioEl.currentTime / audioEl.duration) * 100;
-                            progressBar.style.width = `${progress}%`;
+                            durationEl.textContent = formatTime(audioEl.currentTime);
+                            const progress = audioEl.currentTime / audioEl.duration;
+                            const playedBars = Math.floor(progress * barCount);
+                            waveformBars.forEach((bar, index) => {
+                                bar.classList.toggle('played', index < playedBars);
+                            });
                         });
 
                         audioEl.addEventListener('ended', () => {
                             playBtn.innerHTML = '▶';
-                            progressBar.style.width = '0%';
+                            durationEl.textContent = formatTime(audioEl.duration);
                         });
 
-                        progressContainer.addEventListener('click', (e) => {
-                            const rect = progressContainer.getBoundingClientRect();
+                        waveformContainer.addEventListener('click', (e) => {
+                            const rect = waveformContainer.getBoundingClientRect();
                             const clickX = e.clientX - rect.left;
                             const newTime = (clickX / rect.width) * audioEl.duration;
                             audioEl.currentTime = newTime;
                         });
+
+                        playerDiv.appendChild(playBtn);
+                        playerDiv.appendChild(waveformContainer);
+                        // Do NOT append durationEl to playerDiv. It will be added to the meta div later.
+                        messageDiv.appendChild(playerDiv);
+                        messageDiv.audioDurationElement = durationEl; // Attach it to the message div to be used later
                     }
 
                     if (msgContent.text?.trim()) {
@@ -1161,19 +1187,18 @@
                 const createMetaElement = () => {
                     const metaDiv = document.createElement('div');
                     metaDiv.className = 'message-meta';
-
+                    
+                    // This inner div will hold the right-aligned items
+                    const metaRightDiv = document.createElement('div');
+                    metaRightDiv.className = 'message-meta-right';
+ 
                     const timeSpan = document.createElement('span');
                     timeSpan.className = 'message-timestamp';
                     timeSpan.textContent = timeString;
+                    metaRightDiv.appendChild(timeSpan);
+                    metaDiv.appendChild(metaRightDiv);
 
-                    if (content.audioUrl) {
-                        audioDurationSpan = document.createElement('span');
-                        audioDurationSpan.className = 'message-timestamp';
-                        audioDurationSpan.textContent = '0:00';
-                        metaDiv.appendChild(audioDurationSpan);
-                    }
-                    metaDiv.appendChild(timeSpan);
-                    return metaDiv;
+                    return { main: metaDiv, right: metaRightDiv };
                 };
 
                 // Create message for Raushan's window
@@ -1186,9 +1211,13 @@
                     nishaMessage.classList.add('received');
 
                     // Add status to the sender's message
-                    const senderMeta = createMetaElement();
+                    const { main: senderMeta, right: senderMetaRight } = createMetaElement();
                     raushanMessage.statusElement.innerHTML = '✓'; // Sent (single check)
-                    senderMeta.appendChild(raushanMessage.statusElement);
+                    senderMetaRight.appendChild(raushanMessage.statusElement);
+                    // If it's an audio message, add the duration to the meta section
+                    if (raushanMessage.audioDurationElement) {
+                        senderMeta.prepend(raushanMessage.audioDurationElement); // Add to the main meta div on the left
+                    }
                     raushanMessage.appendChild(senderMeta);
 
                     const handleSeen = () => {
@@ -1212,19 +1241,31 @@
                     if (isSeen) handleSeen();
 
                     // Add meta to receiver's message (without status)
-                    nishaMessage.appendChild(createMetaElement());
+                    const { main: receiverMetaForNisha } = createMetaElement();
+                    if (nishaMessage.audioDurationElement) {
+                        receiverMetaForNisha.prepend(nishaMessage.audioDurationElement); // Add to the main meta div on the left
+                    }
+                    nishaMessage.appendChild(receiverMetaForNisha);
 
                 } else {
                     raushanMessage.classList.add('received');
                     nishaMessage.classList.add('sent');
 
                     // Add meta to receiver's message (without status)
-                    raushanMessage.appendChild(createMetaElement());
+                    const { main: receiverMetaForRaushan } = createMetaElement();
+                    if (raushanMessage.audioDurationElement) {
+                        receiverMetaForRaushan.prepend(raushanMessage.audioDurationElement); // Add to the main meta div on the left
+                    }
+                    raushanMessage.appendChild(receiverMetaForRaushan);
 
                     // Add status to the sender's message
-                    const senderMeta = createMetaElement();
+                    const { main: senderMeta, right: senderMetaRight } = createMetaElement();
                     nishaMessage.statusElement.innerHTML = '✓'; // Sent (single check)
-                    senderMeta.appendChild(nishaMessage.statusElement);
+                    senderMetaRight.appendChild(nishaMessage.statusElement);
+                    // If it's an audio message, add the duration to the meta section
+                    if (nishaMessage.audioDurationElement) {
+                        senderMeta.prepend(nishaMessage.audioDurationElement); // Add to the main meta div on the left
+                    }
                     nishaMessage.appendChild(senderMeta);
 
                     const handleSeen = () => {

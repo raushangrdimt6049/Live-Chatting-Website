@@ -151,18 +151,6 @@
             box-shadow: 0 0 0 2px #d6336c;
         }
 
-        .emoji-button {
-            padding: 0 12px;
-            border: none;
-            background: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #555;
-            transition: transform 0.2s;
-        }
-        .emoji-button:hover {
-            transform: scale(1.1);
-        }
         .attach-button {
             padding: 0 12px;
             border: none;
@@ -173,6 +161,18 @@
             transition: transform 0.2s;
         }
         .attach-button:hover {
+            transform: scale(1.1);
+        }
+        .camera-button {
+            padding: 0 12px;
+            border: none;
+            background: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #555;
+            transition: transform 0.2s;
+        }
+        .camera-button:hover {
             transform: scale(1.1);
         }
         .voice-record-button {
@@ -570,44 +570,6 @@
             background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer; transition: transform 0.2s;
         }
 
-        /* --- Emoji Picker Styles --- */
-        .emoji-picker {
-            position: absolute;
-            bottom: 100%; /* Position above the input area */
-            left: 15px;
-            background: #fff;
-            border-radius: 15px;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-            padding: 10px;
-            display: grid;
-            grid-template-columns: repeat(8, 1fr);
-            gap: 5px;
-            width: calc(100% - 30px);
-            max-width: 350px;
-            opacity: 0;
-            transform: translateY(10px);
-            pointer-events: none;
-            transition: opacity 0.2s ease, transform 0.2s ease;
-        }
-
-        .emoji-picker.visible {
-            opacity: 1;
-            transform: translateY(0);
-            pointer-events: auto;
-        }
-
-        .emoji-picker span {
-            cursor: pointer;
-            font-size: 1.5rem;
-            text-align: center;
-            padding: 5px;
-            border-radius: 8px;
-            transition: background-color 0.2s;
-        }
-        .emoji-picker span:hover {
-            background-color: #f0f0f0;
-        }
-
         /* --- Main Page Header --- */
         .main-header {
             font-size: 2.8rem;
@@ -763,6 +725,79 @@
             cursor: pointer;
             transition: color 0.2s;
         }
+
+        /* --- Camera Preview Modal --- */
+        .camera-preview-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #camera-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #photo-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Use contain to see the whole picture */
+            background-color: #000;
+        }
+
+        .camera-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
+        }
+
+        .camera-control-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            transition: transform 0.2s;
+        }
+        .camera-control-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .capture-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 5px solid rgba(0,0,0,0.3);
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+        }
+        .camera-control-placeholder { width: 40px; } /* To balance the close button */
+        #send-photo-btn {
+            background-color: #d6336c;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-shadow: none;
+        }
+
+
     </style>
 </head>
 <body>
@@ -801,6 +836,21 @@
         <img id="zoomed-image" src="" alt="Zoomed Image">
     </div>
 
+    <!-- Camera Preview Modal -->
+    <div id="camera-preview-modal" class="camera-preview-overlay hidden">
+        <video id="camera-stream" autoplay playsinline></video>
+        <img id="photo-preview" class="hidden" src="" alt="Captured Photo">
+        <div id="live-camera-controls" class="camera-controls">
+            <button id="close-camera-preview" class="camera-control-btn" title="Close">❌</button>
+            <button id="capture-photo-btn" class="camera-control-btn capture-btn" title="Capture Photo"></button>
+            <div class="camera-control-placeholder"></div> <!-- To help with centering the capture button -->
+        </div>
+        <div id="preview-controls" class="camera-controls hidden">
+            <button id="retake-photo-btn" class="camera-control-btn" title="Retake">🔄 Retake</button>
+            <button id="send-photo-btn" class="camera-control-btn" title="Send">Send ➤</button>
+        </div>
+    </div>
+
     <!-- Main container for the two chat boxes -->
     <div class="chat-app-container hidden" id="chat-app-container">
 
@@ -821,9 +871,9 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="raushan-form">
-                <input type="file" id="raushan-image-input" class="hidden" accept="image/*">
-                <button type="button" class="attach-button" data-user="raushan" title="Attach Image">📎</button>
-                <button type="button" class="emoji-button" data-user="raushan">😊</button>
+                <input type="file" id="raushan-file-input" class="hidden" accept="image/*,video/*">
+                <button type="button" class="attach-button" data-user="raushan" title="Attach File">📎</button>
+                <button type="button" class="camera-button" data-user="raushan" title="Use Camera">📸</button>
                 <button type="button" class="voice-record-button" data-user="raushan" title="Record Voice Message">🎤</button>
                 <div class="audio-preview hidden" id="raushan-audio-preview">
                     <button type="button" class="delete-audio-button" title="Delete Recording">🗑️</button>
@@ -831,7 +881,6 @@
                     <button type="button" class="send-icon-button send-audio-button" title="Send Audio">➤</button>
                 </div>
                 <input type="text" id="raushan-input" class="chat-input" placeholder="Type a message...">
-                <div class="emoji-picker" id="raushan-emoji-picker"></div>
                 <button type="submit" class="send-icon-button" title="Send">➤</button>
             </form>
         </div>
@@ -853,9 +902,9 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="nisha-form">
-                <input type="file" id="nisha-image-input" class="hidden" accept="image/*">
-                <button type="button" class="attach-button" data-user="nisha" title="Attach Image">📎</button>
-                <button type="button" class="emoji-button" data-user="nisha">😊</button>
+                <input type="file" id="nisha-file-input" class="hidden" accept="image/*,video/*">
+                <button type="button" class="attach-button" data-user="nisha" title="Attach File">📎</button>
+                <button type="button" class="camera-button" data-user="nisha" title="Use Camera">📸</button>
                 <button type="button" class="voice-record-button" data-user="nisha" title="Record Voice Message">🎤</button>
                 <div class="audio-preview hidden" id="nisha-audio-preview">
                     <button type="button" class="delete-audio-button" title="Delete Recording">🗑️</button>
@@ -863,7 +912,6 @@
                     <button type="button" class="send-icon-button send-audio-button" title="Send Audio">➤</button>
                 </div>
                 <input type="text" id="nisha-input" class="chat-input" placeholder="Type a message...">
-                <div class="emoji-picker" id="nisha-emoji-picker"></div>
                 <button type="submit" class="send-icon-button" title="Send">➤</button>
             </form>
         </div>
@@ -920,17 +968,9 @@
             const clearHistoryButtons = document.querySelectorAll('.clear-history-button');
             const refreshButtons = document.querySelectorAll('.refresh-chat-button');
 
-            // New elements for emoji picker
-            const emojiButtons = document.querySelectorAll('.emoji-button');
-            const emojiPickers = document.querySelectorAll('.emoji-picker');
-            const EMOJI_LIST = [
-                '❤️', '💖', '🥰', '😍', '😘', '💌', '✨', '💫', '💕', '💞', '😊', '😂', '😭', '🤔',
-                '👍', '🙏', '🎉', '🥳', '🔥', '💯', '👀', '👋', '🥺', '😇', '😎', '😜', '🤗', '🤫'
-            ];
-
             // New elements for image sending
             const attachButtons = document.querySelectorAll('.attach-button');
-            const imageInputs = document.querySelectorAll('input[type="file"]');
+            const fileInputs = document.querySelectorAll('input[type="file"]');
 
             // New elements for image zoom
             const imageZoomModal = document.getElementById('image-zoom-modal');
@@ -939,6 +979,16 @@
 
             // New elements for voice recording
             const voiceRecordButtons = document.querySelectorAll('.voice-record-button');
+            const cameraButtons = document.querySelectorAll('.camera-button');
+
+            // New elements for camera preview
+            const cameraPreviewModal = document.getElementById('camera-preview-modal');
+            const photoPreview = document.getElementById('photo-preview');
+            const cameraStream = document.getElementById('camera-stream');
+            const capturePhotoButton = document.getElementById('capture-photo-btn');
+            const closeCameraPreviewButton = document.getElementById('close-camera-preview');
+            const retakePhotoButton = document.getElementById('retake-photo-btn');
+            const sendPhotoButton = document.getElementById('send-photo-btn');
 
             // New element for notification sound
             const notificationSound = document.getElementById('notification-sound');
@@ -948,6 +998,7 @@
                 raushan: "4gh4m01r",
                 nisha: "4gh4m01r"
             };
+            let activeUserForAttachment = null;
 
             let raushanTypingTimer;
             let nishaTypingTimer;
@@ -1383,11 +1434,19 @@
             attachButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     const user = button.dataset.user;
-                    // Programmatically click the hidden file input
-                    document.getElementById(`${user}-image-input`).click();
+                    document.getElementById(`${user}-file-input`).click();
                 });
             });
-            imageInputs.forEach((input) => {
+
+            // --- Image Sending Logic ---
+            attachButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const user = button.dataset.user;
+                    document.getElementById(`${user}-file-input`).click();
+                });
+            });
+
+            fileInputs.forEach(input => {
                 input.addEventListener('change', async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
@@ -1395,10 +1454,18 @@
                     const reader = new FileReader();
                     reader.onload = async (event) => {
                         const imageUrl = event.target.result;
-                        const user = input.id.includes('raushan') ? 'raushan' : 'nisha';
+                        const user = input.id.includes('raushan') ? 'raushan' : 'nisha'; // Determine user from input ID
+                        const isVideo = file.type.startsWith('video/');
+                        const content = {};
+
+                        if (isVideo) {
+                            content.videoUrl = imageUrl;
+                        } else {
+                            content.imageUrl = imageUrl;
+                        }
                         const messageData = {
                             sender: user,
-                            content: { imageUrl: imageUrl },
+                            content: content,
                             timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         };
                         await fetch('/api/messages', {
@@ -1411,6 +1478,99 @@
 
                     e.target.value = ''; // Reset input so the same file can be selected again
                 });
+            });
+
+            // --- Camera Button Logic ---
+            let cameraStreamTrack = null;
+            let capturedImageDataUrl = null;
+
+
+            const openCamera = async (user) => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                    cameraStreamTrack = stream.getTracks()[0];
+                    cameraStream.srcObject = stream;
+                    cameraPreviewModal.classList.remove('hidden');
+                    // Ensure we are in live view
+                    cameraStream.classList.remove('hidden');
+                    photoPreview.classList.add('hidden');
+                    document.getElementById('live-camera-controls').classList.remove('hidden');
+                    document.getElementById('preview-controls').classList.add('hidden');
+
+                    activeUserForAttachment = user; // Set which user is capturing
+                } catch (err) {
+                    console.error("Error accessing camera:", err);
+                    alert("Could not access the camera. Please check your browser permissions and ensure you are on a secure (HTTPS) connection.");
+                }
+            };
+
+            const closeCamera = () => {
+                if (cameraStreamTrack) {
+                    cameraStreamTrack.stop();
+                    cameraStreamTrack = null;
+                }
+                cameraPreviewModal.classList.add('hidden');
+                capturedImageDataUrl = null;
+                activeUserForAttachment = null;
+            };
+
+            cameraButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const user = button.dataset.user;
+                    openCamera(user);
+                });
+            });
+
+            closeCameraPreviewButton.addEventListener('click', closeCamera);
+
+            capturePhotoButton.addEventListener('click', () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = cameraStream.videoWidth;
+                canvas.height = cameraStream.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(cameraStream, 0, 0, canvas.width, canvas.height);
+
+                capturedImageDataUrl = canvas.toDataURL('image/jpeg');
+                photoPreview.src = capturedImageDataUrl;
+
+                // Switch to preview mode
+                cameraStream.classList.add('hidden');
+                photoPreview.classList.remove('hidden');
+                document.getElementById('live-camera-controls').classList.add('hidden');
+                document.getElementById('preview-controls').classList.remove('hidden');
+            });
+
+            retakePhotoButton.addEventListener('click', () => {
+                // Switch back to live camera mode
+                cameraStream.classList.remove('hidden');
+                photoPreview.classList.add('hidden');
+                document.getElementById('live-camera-controls').classList.remove('hidden');
+                document.getElementById('preview-controls').classList.add('hidden');
+                capturedImageDataUrl = null;
+            });
+
+            sendPhotoButton.addEventListener('click', async () => {
+                if (!activeUserForAttachment || !capturedImageDataUrl) return;
+
+                const messageData = {
+                    sender: activeUserForAttachment,
+                    content: { imageUrl: capturedImageDataUrl },
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                };
+
+                try {
+                    await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(messageData)
+                    });
+                } catch (error) {
+                    console.error("Failed to send captured image:", error);
+                    alert("Could not send the image. Please try again.");
+                } finally {
+                    // Close the camera preview after attempting to send
+                    closeCamera();
+                }
             });
 
             // --- Voice Recording Logic ---
@@ -1474,7 +1634,8 @@
                 // Hide regular input elements
                 inputArea.querySelector('.chat-input').classList.add('hidden');
                 inputArea.querySelector('.attach-button').classList.add('hidden');
-                inputArea.querySelector('.emoji-button').classList.add('hidden');
+                inputArea.querySelector('.attach-button').classList.add('hidden');
+                inputArea.querySelector('.camera-button').classList.add('hidden');
                 inputArea.querySelector('.voice-record-button').classList.add('hidden');
                 inputArea.querySelector('button[type="submit"]').classList.add('hidden');
 
@@ -1519,46 +1680,11 @@
                 audioPreview.classList.add('hidden');
                 inputArea.querySelector('.chat-input').classList.remove('hidden');
                 inputArea.querySelector('.attach-button').classList.remove('hidden');
-                inputArea.querySelector('.emoji-button').classList.remove('hidden');
+                inputArea.querySelector('.attach-button').classList.remove('hidden');
+                inputArea.querySelector('.camera-button').classList.remove('hidden');
                 inputArea.querySelector('.voice-record-button').classList.remove('hidden');
                 inputArea.querySelector('button[type="submit"]').classList.remove('hidden');
             }
-
-            // --- Emoji Picker Logic ---
-            function populateEmojiPickers() {
-                emojiPickers.forEach(picker => {
-                    EMOJI_LIST.forEach(emoji => {
-                        const emojiSpan = document.createElement('span');
-                        emojiSpan.textContent = emoji;
-                        emojiSpan.addEventListener('click', () => {
-                            const user = picker.id.includes('raushan') ? 'raushan' : 'nisha';
-                            const inputField = document.getElementById(`${user}-input`);
-                            inputField.value += emoji;
-                            inputField.focus();
-                        });
-                        picker.appendChild(emojiSpan);
-                    });
-                });
-            }
-
-            emojiButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent the click from closing the picker immediately
-                    const user = button.dataset.user;
-                    const picker = document.getElementById(`${user}-emoji-picker`);
-                    // Hide other pickers
-                    emojiPickers.forEach(p => { if (p !== picker) p.classList.remove('visible'); });
-                    // Toggle current picker
-                    picker.classList.toggle('visible');
-                });
-            });
-
-            // Close emoji picker when clicking anywhere else
-            document.addEventListener('click', () => {
-                emojiPickers.forEach(picker => picker.classList.remove('visible'));
-            });
-
-            populateEmojiPickers(); // Initialize the emoji pickers on load
 
             // --- Image Zoom Logic ---
             const closeZoomModal = () => {

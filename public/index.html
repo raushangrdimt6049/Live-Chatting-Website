@@ -26,6 +26,11 @@
             transition: background 0.5s ease;
         }
 
+        /* New class to apply the love theme background when chat is active */
+        body.chat-active {
+            /* The background is now applied to .chat-app-container */
+        }
+
         /* --- Animated Background --- */
         .hearts-container {
             position: absolute;
@@ -34,7 +39,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            z-index: -1;
+            z-index: 0; /* Changed from -1 to bring it above the body background */
         }
 
         .emoji-float {
@@ -64,6 +69,12 @@
             padding: 20px;
             width: 90%;
             max-width: 1200px;
+            position: relative; /* Ensure content is above the emojis */
+            background-image: url('https://thumbs.dreamstime.com/b/blue-neon-heart-sign-stylish-cafe-interior-suitable-diverse-creative-needs-401031946.jpg');
+            background-size: cover;
+            background-position: center;
+            border-radius: 25px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
         }
 
         /* --- Individual Chat Box Styling --- */
@@ -83,7 +94,7 @@
         .chat-header {
             position: relative;
             padding: 20px;
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.4); /* Made slightly more opaque */
             border-bottom: 1px solid rgba(255, 255, 255, 0.18);
             border-radius: 25px 25px 0 0;
             text-align: center;
@@ -119,6 +130,8 @@
             padding: 15px;
             position: relative; /* For emoji picker positioning */
             border-top: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(255, 255, 255, 0.4); /* Added background to make it clearer */
+            border-radius: 0 0 25px 25px; /* Match the chat box's bottom corners */
         }
 
         .chat-input {
@@ -426,6 +439,7 @@
             align-items: center;
             padding: 20px;
             gap: 20px;
+            position: relative; /* Ensure content is above the emojis */
         }
 
         .user-selection-box {
@@ -848,6 +862,12 @@
 
     </div>
 
+    <!-- Audio element for notification sound -->
+    <audio id="notification-sound" preload="auto">
+        <!-- A simple, pleasant notification sound from a free source -->
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.wav" type="audio/wav">
+    </audio>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- Animated Hearts ---
@@ -912,6 +932,9 @@
             // New elements for voice recording
             const voiceRecordButtons = document.querySelectorAll('.voice-record-button');
 
+            // New element for notification sound
+            const notificationSound = document.getElementById('notification-sound');
+
             let activeUser = null;
             const PASSWORDS = {
                 raushan: "4gh4m01r",
@@ -954,9 +977,16 @@
 
                     switch (eventData.type) {
                         case 'new_message':
-                            renderMessage(eventData.payload);
+                            const message = eventData.payload;
+                            renderMessage(message);
+
+                            // Play sound if the active user is the recipient of the message
+                            if (activeUser && message.sender !== activeUser) {
+                                notificationSound.play().catch(e => console.error("Error playing sound:", e));
+                            }
+
                             // If the current active user is the recipient, mark message as seen immediately
-                            const recipient = eventData.payload.sender === 'raushan' ? 'nisha' : 'raushan';
+                            const recipient = message.sender === 'raushan' ? 'nisha' : 'raushan';
                             if (activeUser === recipient) {
                                 // Use a small timeout to ensure the message is rendered before marking it seen,
                                 // although the backend handles the logic regardless of UI state.
@@ -1516,6 +1546,7 @@
                     loginModal.classList.remove('visible');
                     selectionContainer.classList.add('hidden');
                     chatAppContainer.classList.remove('hidden');
+                    document.body.classList.add('chat-active'); // Apply the new background
                     
                     clearInterval(unreadCountInterval); // Stop polling for unread counts
                     document.getElementById('raushan-notification').classList.add('hidden');
@@ -1560,6 +1591,7 @@
                 button.addEventListener('click', () => {
                     chatAppContainer.classList.add('hidden');
                     selectionContainer.classList.remove('hidden');
+                    document.body.classList.remove('chat-active'); // Revert to the original background
                     activeUser = null;
                     updateUnreadCounts(); // Check counts immediately
                     unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Restart polling

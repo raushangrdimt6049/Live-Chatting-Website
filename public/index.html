@@ -1438,14 +1438,6 @@
                 });
             });
 
-            // --- Image Sending Logic ---
-            attachButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const user = button.dataset.user;
-                    document.getElementById(`${user}-file-input`).click();
-                });
-            });
-
             fileInputs.forEach(input => {
                 input.addEventListener('change', async (e) => {
                     const file = e.target.files[0];

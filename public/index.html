@@ -746,6 +746,9 @@
             height: 100%;
             object-fit: cover;
         }
+        #camera-stream.mirrored {
+            transform: scaleX(-1); /* Flip horizontally */
+        }
         #photo-preview {
             width: 100%;
             height: 100%;
@@ -843,7 +846,7 @@
         <div id="live-camera-controls" class="camera-controls">
             <button id="close-camera-preview" class="camera-control-btn" title="Close">❌</button>
             <button id="capture-photo-btn" class="camera-control-btn capture-btn" title="Capture Photo"></button>
-            <div class="camera-control-placeholder"></div> <!-- To help with centering the capture button -->
+            <button id="flip-camera-btn" class="camera-control-btn" title="Flip Camera">🔄</button>
         </div>
         <div id="preview-controls" class="camera-controls hidden">
             <button id="retake-photo-btn" class="camera-control-btn" title="Retake">🔄 Retake</button>
@@ -989,6 +992,7 @@
             const closeCameraPreviewButton = document.getElementById('close-camera-preview');
             const retakePhotoButton = document.getElementById('retake-photo-btn');
             const sendPhotoButton = document.getElementById('send-photo-btn');
+            const flipCameraButton = document.getElementById('flip-camera-btn');
 
             // New element for notification sound
             const notificationSound = document.getElementById('notification-sound');
@@ -1475,12 +1479,24 @@
             // --- Camera Button Logic ---
             let cameraStreamTrack = null;
             let capturedImageDataUrl = null;
+            let currentFacingMode = 'user'; // 'user' for front, 'environment' for back
 
 
             const openCamera = async (user) => {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                    // Stop any existing stream before starting a new one
+                    if (cameraStreamTrack) {
+                        cameraStreamTrack.stop();
+                    }
+
+                    const constraints = {
+                        video: { facingMode: currentFacingMode },
+                        audio: false
+                    };
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     cameraStreamTrack = stream.getTracks()[0];
+                    // Mirror the front camera view
+                    cameraStream.classList.toggle('mirrored', currentFacingMode === 'user');
                     cameraStream.srcObject = stream;
                     cameraPreviewModal.classList.remove('hidden');
                     // Ensure we are in live view
@@ -1520,10 +1536,19 @@
                 canvas.width = cameraStream.videoWidth;
                 canvas.height = cameraStream.videoHeight;
                 const context = canvas.getContext('2d');
+
+                // If the stream is mirrored, we need to un-mirror the captured image
+                if (currentFacingMode === 'user') {
+                    context.translate(canvas.width, 0);
+                    context.scale(-1, 1);
+                }
+
                 context.drawImage(cameraStream, 0, 0, canvas.width, canvas.height);
 
                 capturedImageDataUrl = canvas.toDataURL('image/jpeg');
                 photoPreview.src = capturedImageDataUrl;
+
+                context.setTransform(1, 0, 0, 1, 0, 0); // Reset transform for next use
 
                 // Switch to preview mode
                 cameraStream.classList.add('hidden');
@@ -1539,6 +1564,12 @@
                 document.getElementById('live-camera-controls').classList.remove('hidden');
                 document.getElementById('preview-controls').classList.add('hidden');
                 capturedImageDataUrl = null;
+            });
+
+            flipCameraButton.addEventListener('click', () => {
+                // Toggle between 'user' (front) and 'environment' (back)
+                currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+                openCamera(activeUserForAttachment); // Re-open the camera with the new mode
             });
 
             sendPhotoButton.addEventListener('click', async () => {

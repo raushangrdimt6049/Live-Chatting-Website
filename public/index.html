@@ -253,6 +253,13 @@
             object-fit: cover;
             cursor: pointer;
         }
+        .message-video {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 10px;
+            margin-bottom: 5px; /* Space between video and meta */
+            background-color: #000;
+        }
         .message-audio {
             display: none; /* We will use a custom player */
         }
@@ -755,6 +762,18 @@
             object-fit: contain; /* Use contain to see the whole picture */
             background-color: #000;
         }
+        #attachment-preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
+        #attachment-preview-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #000;
+        }
 
         .camera-controls {
             position: absolute;
@@ -838,6 +857,18 @@
         <span class="close-zoom-button">&times;</span>
         <img id="zoomed-image" src="" alt="Zoomed Image">
     </div>
+
+    <!-- Attachment Preview Modal -->
+    <div id="attachment-preview-modal" class="camera-preview-overlay hidden">
+        <img id="attachment-preview-image" class="hidden" src="" alt="Attachment Preview">
+        <video id="attachment-preview-video" class="hidden" controls src=""></video>
+        <div id="attachment-preview-controls" class="camera-controls">
+            <button id="close-attachment-preview" class="camera-control-btn" title="Close">❌</button>
+            <button id="send-attachment-btn" class="camera-control-btn" title="Send">Send ➤</button>
+            <button id="reattach-file-btn" class="camera-control-btn" title="Change File">🔄</button>
+        </div>
+    </div>
+
 
     <!-- Camera Preview Modal -->
     <div id="camera-preview-modal" class="camera-preview-overlay hidden">
@@ -994,6 +1025,14 @@
             const sendPhotoButton = document.getElementById('send-photo-btn');
             const flipCameraButton = document.getElementById('flip-camera-btn');
 
+            // New elements for attachment preview
+            const attachmentPreviewModal = document.getElementById('attachment-preview-modal');
+            const attachmentPreviewImage = document.getElementById('attachment-preview-image');
+            const attachmentPreviewVideo = document.getElementById('attachment-preview-video');
+            const closeAttachmentPreviewBtn = document.getElementById('close-attachment-preview');
+            const sendAttachmentBtn = document.getElementById('send-attachment-btn');
+            const reattachFileBtn = document.getElementById('reattach-file-btn');
+
             // New element for notification sound
             const notificationSound = document.getElementById('notification-sound');
 
@@ -1143,6 +1182,15 @@
                         });
                         messageDiv.appendChild(imageEl);
                     }
+
+                    if (msgContent.videoUrl) {
+                        const videoEl = document.createElement('video');
+                        videoEl.src = msgContent.videoUrl;
+                        videoEl.className = 'message-video';
+                        videoEl.controls = true;
+                        messageDiv.appendChild(videoEl);
+                    }
+
 
                     if (msgContent.audioUrl) {
                         // Create a hidden audio element to control playback
@@ -1442,38 +1490,70 @@
                 });
             });
 
+            let attachedFileUrl = null;
+            let attachedFileType = null;
+
             fileInputs.forEach(input => {
                 input.addEventListener('change', async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
 
+                    activeUserForAttachment = input.id.includes('raushan') ? 'raushan' : 'nisha';
+                    attachedFileType = file.type;
+
                     const reader = new FileReader();
                     reader.onload = async (event) => {
-                        const imageUrl = event.target.result;
-                        const user = input.id.includes('raushan') ? 'raushan' : 'nisha'; // Determine user from input ID
-                        const isVideo = file.type.startsWith('video/');
-                        const content = {};
+                        attachedFileUrl = event.target.result;
 
-                        if (isVideo) {
-                            content.videoUrl = imageUrl;
+                        // Show preview modal
+                        attachmentPreviewModal.classList.remove('hidden');
+
+                        if (attachedFileType.startsWith('video/')) {
+                            attachmentPreviewImage.classList.add('hidden');
+                            attachmentPreviewVideo.classList.remove('hidden');
+                            attachmentPreviewVideo.src = attachedFileUrl;
                         } else {
-                            content.imageUrl = imageUrl;
+                            attachmentPreviewVideo.classList.add('hidden');
+                            attachmentPreviewImage.classList.remove('hidden');
+                            attachmentPreviewImage.src = attachedFileUrl;
                         }
-                        const messageData = {
-                            sender: user,
-                            content: content,
-                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        };
-                        await fetch('/api/messages', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(messageData)
-                        });
                     };
                     reader.readAsDataURL(file);
 
                     e.target.value = ''; // Reset input so the same file can be selected again
                 });
+            });
+
+            const closeAttachmentPreview = () => {
+                attachmentPreviewModal.classList.add('hidden');
+                attachedFileUrl = null;
+                attachedFileType = null;
+                activeUserForAttachment = null;
+                attachmentPreviewVideo.pause();
+                attachmentPreviewVideo.src = "";
+            };
+
+            closeAttachmentPreviewBtn.addEventListener('click', closeAttachmentPreview);
+
+            reattachFileBtn.addEventListener('click', () => {
+                if (activeUserForAttachment) {
+                    document.getElementById(`${activeUserForAttachment}-file-input`).click();
+                }
+            });
+
+            sendAttachmentBtn.addEventListener('click', async () => {
+                if (!activeUserForAttachment || !attachedFileUrl) return;
+
+                const content = {};
+                if (attachedFileType.startsWith('video/')) {
+                    content.videoUrl = attachedFileUrl;
+                } else {
+                    content.imageUrl = attachedFileUrl;
+                }
+
+                const messageData = { sender: activeUserForAttachment, content, timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
+                closeAttachmentPreview();
             });
 
             // --- Camera Button Logic ---

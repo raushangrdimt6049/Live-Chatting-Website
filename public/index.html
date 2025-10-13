@@ -162,6 +162,46 @@
         .attach-button:hover {
             transform: scale(1.1);
         }
+        .voice-record-button {
+            padding: 0 12px;
+            border: none;
+            background: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #555;
+            transition: color 0.2s, transform 0.2s;
+        }
+        .voice-record-button:hover {
+            transform: scale(1.1);
+        }
+        .voice-record-button.recording {
+            color: #ff4d4d; /* Red color when recording */
+            animation: pulseRecording 1.5s infinite;
+        }
+        .audio-preview {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+        .preview-audio-player {
+            flex-grow: 1;
+            height: 40px;
+        }
+        .delete-audio-button {
+            padding: 0 12px;
+            border: none;
+            background: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #555;
+            transition: color 0.2s, transform 0.2s;
+        }
+        .delete-audio-button:hover {
+            color: #ff4d4d;
+            transform: scale(1.1);
+        }
+
 
         .send-icon-button {
             padding: 0 15px;
@@ -200,11 +240,84 @@
             object-fit: cover;
             cursor: pointer;
         }
+        .message-audio {
+            display: none; /* We will use a custom player */
+        }
+
+        .custom-audio-player {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            max-width: 280px;
+            padding: 5px 0;
+        }
+
+        .play-pause-btn {
+            background: #d6336c;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem; /* Adjusted for icon size */
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0; /* Prevent button from shrinking */
+            transition: background-color 0.2s;
+        }
+
+        .message.received .play-pause-btn {
+            background-color: #e9ecef;
+            color: #d6336c;
+        }
+
+        .progress-bar-container {
+            flex-grow: 1;
+            height: 5px;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+        }
+        .message.sent .progress-bar-container {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0;
+            background-color: #fff;
+            border-radius: 3px;
+            position: relative;
+        }
+        .message.received .progress-bar {
+            background-color: #d6336c;
+        }
+
 
         .message-timestamp {
             font-size: 0.75rem;
             /* margin-top: 5px; */ /* No longer needed with flex */
             align-self: flex-end;
+        }
+
+        .progress-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #fff;
+            position: absolute;
+            right: -6px; /* Half of its width to center it on the end of the progress bar */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .message.received .progress-thumb {
+            background-color: #d6336c;
         }
 
         .message-meta {
@@ -409,6 +522,12 @@
             font-size: 0.9rem;
             height: 1.2em;
         }
+        
+        @keyframes pulseRecording {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
 
         .switch-user-button {
             position: absolute;
@@ -683,6 +802,12 @@
                 <input type="file" id="raushan-image-input" class="hidden" accept="image/*">
                 <button type="button" class="attach-button" data-user="raushan" title="Attach Image">📎</button>
                 <button type="button" class="emoji-button" data-user="raushan">😊</button>
+                <button type="button" class="voice-record-button" data-user="raushan" title="Record Voice Message">🎤</button>
+                <div class="audio-preview hidden" id="raushan-audio-preview">
+                    <button type="button" class="delete-audio-button" title="Delete Recording">🗑️</button>
+                    <audio controls class="preview-audio-player"></audio>
+                    <button type="button" class="send-icon-button send-audio-button" title="Send Audio">➤</button>
+                </div>
                 <input type="text" id="raushan-input" class="chat-input" placeholder="Type a message...">
                 <div class="emoji-picker" id="raushan-emoji-picker"></div>
                 <button type="submit" class="send-icon-button" title="Send">➤</button>
@@ -709,6 +834,12 @@
                 <input type="file" id="nisha-image-input" class="hidden" accept="image/*">
                 <button type="button" class="attach-button" data-user="nisha" title="Attach Image">📎</button>
                 <button type="button" class="emoji-button" data-user="nisha">😊</button>
+                <button type="button" class="voice-record-button" data-user="nisha" title="Record Voice Message">🎤</button>
+                <div class="audio-preview hidden" id="nisha-audio-preview">
+                    <button type="button" class="delete-audio-button" title="Delete Recording">🗑️</button>
+                    <audio controls class="preview-audio-player"></audio>
+                    <button type="button" class="send-icon-button send-audio-button" title="Send Audio">➤</button>
+                </div>
                 <input type="text" id="nisha-input" class="chat-input" placeholder="Type a message...">
                 <div class="emoji-picker" id="nisha-emoji-picker"></div>
                 <button type="submit" class="send-icon-button" title="Send">➤</button>
@@ -777,6 +908,9 @@
             const imageZoomModal = document.getElementById('image-zoom-modal');
             const zoomedImage = document.getElementById('zoomed-image');
             const closeZoomButton = document.querySelector('.close-zoom-button');
+
+            // New elements for voice recording
+            const voiceRecordButtons = document.querySelectorAll('.voice-record-button');
 
             let activeUser = null;
             const PASSWORDS = {
@@ -898,7 +1032,7 @@
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
                 const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
-                
+
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
                     const messageDiv = document.createElement('div');
@@ -915,6 +1049,70 @@
                             imageZoomModal.classList.add('visible');
                         });
                         messageDiv.appendChild(imageEl);
+                    }
+
+                    if (msgContent.audioUrl) {
+                        // Create a hidden audio element to control playback
+                        const audioEl = document.createElement('audio');
+                        audioEl.src = msgContent.audioUrl;
+                        audioEl.className = 'message-audio';
+                        messageDiv.appendChild(audioEl);
+                        let audioDurationSpan;
+
+                        // Create custom player UI
+                        const playerDiv = document.createElement('div');
+                        playerDiv.className = 'custom-audio-player';
+
+                        const playBtn = document.createElement('button');
+                        playBtn.className = 'play-pause-btn';
+                        playBtn.innerHTML = '▶'; // Play icon
+
+                        const progressContainer = document.createElement('div');
+                        progressContainer.className = 'progress-bar-container';
+                        const progressBar = document.createElement('div');
+                        progressBar.className = 'progress-bar';
+                        const progressThumb = document.createElement('div');
+                        progressThumb.className = 'progress-thumb';
+                        progressBar.appendChild(progressThumb);
+                        progressContainer.appendChild(progressBar);
+
+                        playerDiv.appendChild(playBtn);
+                        playerDiv.appendChild(progressContainer);
+                        messageDiv.appendChild(playerDiv);
+
+                        // --- Custom Player Logic ---
+                        audioEl.addEventListener('loadedmetadata', () => {
+                            const minutes = Math.floor(audioEl.duration / 60);
+                            const seconds = Math.floor(audioEl.duration % 60).toString().padStart(2, '0');
+                            if (audioDurationSpan) audioDurationSpan.textContent = `${minutes}:${seconds}`;
+                        });
+
+                        playBtn.addEventListener('click', () => {
+                            if (audioEl.paused) {
+                                audioEl.play();
+                                playBtn.innerHTML = '⏸'; // Pause icon
+                            } else {
+                                audioEl.pause();
+                                playBtn.innerHTML = '▶'; // Play icon
+                            }
+                        });
+
+                        audioEl.addEventListener('timeupdate', () => {
+                            const progress = (audioEl.currentTime / audioEl.duration) * 100;
+                            progressBar.style.width = `${progress}%`;
+                        });
+
+                        audioEl.addEventListener('ended', () => {
+                            playBtn.innerHTML = '▶';
+                            progressBar.style.width = '0%';
+                        });
+
+                        progressContainer.addEventListener('click', (e) => {
+                            const rect = progressContainer.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left;
+                            const newTime = (clickX / rect.width) * audioEl.duration;
+                            audioEl.currentTime = newTime;
+                        });
                     }
 
                     if (msgContent.text?.trim()) {
@@ -937,6 +1135,13 @@
                     const timeSpan = document.createElement('span');
                     timeSpan.className = 'message-timestamp';
                     timeSpan.textContent = timeString;
+
+                    if (content.audioUrl) {
+                        audioDurationSpan = document.createElement('span');
+                        audioDurationSpan.className = 'message-timestamp';
+                        audioDurationSpan.textContent = '0:00';
+                        metaDiv.appendChild(audioDurationSpan);
+                    }
                     metaDiv.appendChild(timeSpan);
                     return metaDiv;
                 };
@@ -1136,6 +1341,117 @@
                     e.target.value = ''; // Reset input so the same file can be selected again
                 });
             });
+
+            // --- Voice Recording Logic ---
+            let mediaRecorder;
+            let audioChunks = [];
+            let isRecording = false;
+            let recordedAudioBlob = null;
+
+            voiceRecordButtons.forEach(button => {
+                button.addEventListener('click', async () => {
+                    const user = button.dataset.user;
+
+                    if (isRecording) {
+                        // Stop recording
+                        mediaRecorder.stop();
+                        button.classList.remove('recording');
+                        button.innerHTML = '🎤'; // Change icon back to mic
+                        isRecording = false;
+                    } else {
+                        // Start recording
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            mediaRecorder = new MediaRecorder(stream);
+
+                            mediaRecorder.ondataavailable = event => {
+                                audioChunks.push(event.data);
+                            };
+
+                            mediaRecorder.onstop = () => {
+                                recordedAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                                const audioUrl = URL.createObjectURL(recordedAudioBlob);
+                                
+                                // Show audio preview
+                                showAudioPreview(user, audioUrl);
+
+                                // Clean up
+                                audioChunks = [];
+                                stream.getTracks().forEach(track => track.stop()); // Stop microphone access
+                            };
+
+                            mediaRecorder.start();
+                            button.classList.add('recording');
+                            button.innerHTML = '■'; // Change icon to a stop square
+                            isRecording = true;
+
+                        } catch (err) {
+                            console.error("Error accessing microphone:", err);
+                            alert("Could not access the microphone. Please check your browser permissions.");
+                        }
+                    }
+                });
+            });
+
+            function showAudioPreview(user, audioUrl) {
+                const inputArea = document.getElementById(`${user}-form`);
+                const audioPreview = inputArea.querySelector('.audio-preview');
+                const audioPlayer = audioPreview.querySelector('.preview-audio-player');
+                const deleteButton = audioPreview.querySelector('.delete-audio-button');
+                const sendButton = audioPreview.querySelector('.send-audio-button');
+
+                // Hide regular input elements
+                inputArea.querySelector('.chat-input').classList.add('hidden');
+                inputArea.querySelector('.attach-button').classList.add('hidden');
+                inputArea.querySelector('.emoji-button').classList.add('hidden');
+                inputArea.querySelector('.voice-record-button').classList.add('hidden');
+                inputArea.querySelector('button[type="submit"]').classList.add('hidden');
+
+                // Show preview
+                audioPlayer.src = audioUrl;
+                audioPreview.classList.remove('hidden');
+
+                // --- Event Listeners for Preview ---
+                const sendAudioHandler = async () => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(recordedAudioBlob);
+                    reader.onloadend = async () => {
+                        const base64Audio = reader.result;
+                        const messageData = {
+                            sender: user,
+                            content: { audioUrl: base64Audio },
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                        await fetch('/api/messages', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(messageData)
+                        });
+                        hideAudioPreview(user); // Clean up UI after sending
+                    };
+                };
+
+                const deleteAudioHandler = () => {
+                    hideAudioPreview(user);
+                };
+
+                // Use .onclick to easily replace listeners
+                sendButton.onclick = sendAudioHandler;
+                deleteButton.onclick = deleteAudioHandler;
+            }
+
+            function hideAudioPreview(user) {
+                const inputArea = document.getElementById(`${user}-form`);
+                const audioPreview = inputArea.querySelector('.audio-preview');
+                
+                // Hide preview and show regular inputs
+                audioPreview.classList.add('hidden');
+                inputArea.querySelector('.chat-input').classList.remove('hidden');
+                inputArea.querySelector('.attach-button').classList.remove('hidden');
+                inputArea.querySelector('.emoji-button').classList.remove('hidden');
+                inputArea.querySelector('.voice-record-button').classList.remove('hidden');
+                inputArea.querySelector('button[type="submit"]').classList.remove('hidden');
+            }
 
             // --- Emoji Picker Logic ---
             function populateEmojiPickers() {

@@ -87,12 +87,21 @@ wss.on('connection', (ws) => {
         // Remove user from the clients map on disconnect
         if (ws.user) {
             clients.delete(ws.user);
-            console.log(`User '${ws.user}' unregistered`);
+            const disconnectedUser = ws.user;
+            console.log(`User '${disconnectedUser}' unregistered`);
 
             // Notify all other clients that this user is now offline
             wss.clients.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'user_status', payload: { user: ws.user, status: 'offline' } }));
+                    // Send offline status update
+                    client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));
+
+                    // Also, if the remaining client is in a call, tell them to end it.
+                    // This is a proactive way to terminate calls on disconnect.
+                    client.send(JSON.stringify({
+                        type: 'call-end',
+                        payload: { from: disconnectedUser, reason: 'disconnect' }
+                    }));
                 }
             });
         }
@@ -125,6 +134,9 @@ app.post('/api/messages', async (req, res) => {
         );
         const newMessage = result.rows[0];
 
+        // Add recipient to the message payload for client-side logic
+        newMessage.recipient = sender === 'raushan' ? 'nisha' : 'raushan';
+
         // Broadcast the new message to all connected WebSocket clients
         wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
@@ -135,7 +147,7 @@ app.post('/api/messages', async (req, res) => {
                 // Also notify clients to update their unread counts
                 client.send(JSON.stringify({
                     type: 'unread_count_update',
-                    payload: { recipient: sender === 'raushan' ? 'nisha' : 'raushan' }
+                    payload: { recipient: newMessage.recipient }
                 }));
             }
         });

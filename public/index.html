@@ -861,7 +861,7 @@
             object-fit: cover;
         }
         #camera-stream.mirrored {
-            transform: scaleX(-1); /* Flip horizontally */
+            transform: scaleX(-1); /* Flip horizontally for a mirror effect */
         }
         #photo-preview {
             width: 100%;
@@ -941,6 +941,15 @@
             align-items: center;
             color: white;
             text-align: center;
+            flex-direction: column; /* Ensure vertical layout */
+        }
+
+        .call-header {
+            width: 100%;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+            box-sizing: border-box;
         }
 
         .call-container {
@@ -949,39 +958,36 @@
             height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: center; /* Center the main content */
             align-items: center;
         }
 
         #remote-video {
-            position: absolute;
-            top: 0;
-            left: 0;
+            flex-grow: 1; /* Allow video to take up available space */
             width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: -1; /* Behind other call content */
+            max-height: 75vh; /* Limit max height to leave room for controls */
+            object-fit: contain; /* Show the whole video without cropping */
+            border-radius: 15px;
+            transform: scaleX(1); /* Explicitly prevent any mirroring/flipping */
+            border: 3px solid #d6336c; /* Added a proper border */
+            background-color: #222; /* Dark background for audio calls */
+            margin: 15px; /* Add some margin */
         }
 
         #local-video {
-            position: absolute;
-            bottom: 120px; /* Above controls */
-            right: 20px;
-            width: 150px;
-            height: 200px;
-            object-fit: cover;
-            border-radius: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            transform: scaleX(-1); /* Mirror local view */
+            /* Hide self-view as requested */
+            display: none !important;
         }
 
         .call-info {
-            margin-bottom: 20px;
+            position: static;
+            flex-shrink: 0; /* Prevent it from shrinking */
+            background: none;
+            padding: 0;
         }
 
         .call-info h2 {
-            font-size: 2rem;
-            margin-bottom: 10px;
+            font-size: 1.5rem;
         }
 
         .call-info p {
@@ -990,10 +996,12 @@
         }
 
         .call-controls {
-            position: absolute;
-            bottom: 30px;
+            position: static;
             display: flex;
-            gap: 25px;
+            gap: 20px;
+            flex-shrink: 0; /* Prevent it from shrinking */
+            padding: 30px 0;
+            justify-content: center; /* Center the controls */
             align-items: center;
         }
 
@@ -1018,6 +1026,20 @@
         .call-control-btn.end-call:hover { background-color: #c0392b; }
         .call-control-btn.accept-call { background-color: #2ecc71; }
         .call-control-btn.accept-call:hover { background-color: #27ae60; }
+
+        .incoming-call-actions {
+            display: flex;
+            gap: 60px; /* More space between accept/reject */
+            align-items: center;
+        }
+
+        /* New container to group all active call buttons for single-line layout */
+        .active-call-controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
         .call-control-btn.active { background-color: #d6336c; }
 
 
@@ -1088,20 +1110,28 @@
 
     <!-- Call Modal -->
     <div id="call-modal" class="call-modal-overlay hidden">
-        <div class="call-container">
-            <video id="remote-video" autoplay playsinline></video>
-            <video id="local-video" autoplay playsinline muted></video>
-
+        <div class="call-header">
             <div id="call-status-info" class="call-info">
                 <h2 id="call-with-user"></h2>
                 <p id="call-status-text"></p>
             </div>
+        </div>
+        <div class="call-container">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" autoplay playsinline muted></video>
 
             <div id="call-controls" class="call-controls">
-                <button id="toggle-mic-btn" class="call-control-btn" title="Mute/Unmute Mic">🎤</button>
-                <button id="toggle-video-btn" class="call-control-btn" title="Toggle Video">📹</button>
-                <button id="end-call-btn" class="call-control-btn end-call" title="End Call">📞</button>
-                <button id="accept-call-btn" class="call-control-btn accept-call hidden" title="Accept Call">📞</button>
+                <div id="active-call-actions" class="active-call-controls hidden">
+                    <button id="toggle-mic-btn" class="call-control-btn" title="Mute/Unmute Mic">🎤</button>
+                    <button id="toggle-video-btn" class="call-control-btn" title="Toggle Video">📹</button>
+                    <button id="toggle-speaker-btn" class="call-control-btn" title="Toggle Speaker">🔊</button>
+                    <button id="flip-camera-call-btn" class="call-control-btn" title="Flip Camera">🔄</button>
+                    <button id="end-call-btn" class="call-control-btn end-call" title="End Call">📞</button>
+                </div>
+                <div id="incoming-call-actions" class="incoming-call-actions hidden">
+                    <button id="accept-call-btn" class="call-control-btn accept-call" title="Accept Call">📞</button>
+                    <button id="end-call-btn-decline" class="call-control-btn end-call" title="Decline Call">📞</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1240,7 +1270,7 @@
             const loginForUser = document.getElementById('login-for-user');
             const userSelectionBoxes = document.querySelectorAll('.user-selection-box');
             const switchUserButtons = document.querySelectorAll('.switch-user-button');
-            const clearHistoryButtons = document.querySelectorAll('.clear-history-button');
+            const clearHistoryButtons = document.querySelectorAll('.clear-history-button'); // This was correct
             const refreshButtons = document.querySelectorAll('.refresh-chat-button');
 
             // New elements for image sending
@@ -1288,6 +1318,8 @@
             const endCallBtn = document.getElementById('end-call-btn');
             const toggleMicBtn = document.getElementById('toggle-mic-btn');
             const toggleVideoBtn = document.getElementById('toggle-video-btn');
+            const toggleSpeakerBtn = document.getElementById('toggle-speaker-btn');
+            const flipCameraCallBtn = document.getElementById('flip-camera-call-btn');
             let activeUser = null;
             const PASSWORDS = {
                 raushan: "18051104143",
@@ -1307,6 +1339,7 @@
             let localStream;
             let isCallInProgress = false;
             let callOfferData = null;
+            let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' } // Public STUN server
@@ -1319,6 +1352,12 @@
                 const year = date.getFullYear();
                 return `${day}-${month}-${year}`;
             }
+            function formatSeenTime(isoString) {
+                if (!isoString) return '';
+                const date = new Date(isoString);
+                // HH:MM:SS format
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            }
 
             // --- WebRTC Call Logic ---
 
@@ -1328,6 +1367,7 @@
                     return;
                 }
 
+                currentCallFacingMode = 'user'; // Reset to front camera for new calls
                 try {
                     const constraints = {
                         video: callType === 'video',
@@ -1408,8 +1448,11 @@
 
             const handleCallAnswer = async (data) => {
                 if (peerConnection) {
+                    // The user who initiated the call receives the answer
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    showCallModal('active', data.from, callOfferData?.callType || 'call');
+                    // We need to know the call type, which is stored in the original offer data
+                    const callType = callOfferData ? callOfferData.callType : 'video'; // Default to video if something is odd
+                    showCallModal('active', data.from, callType);
                 }
             };
 
@@ -1484,13 +1527,22 @@
                 const otherUser = user.charAt(0).toUpperCase() + user.slice(1);
                 callWithUserEl.textContent = `Call with ${otherUser}`;
 
-                acceptCallBtn.classList.toggle('hidden', state !== 'incoming');
-                endCallBtn.classList.toggle('hidden', state === 'incoming');
-                toggleMicBtn.classList.toggle('hidden', state === 'incoming');
-                toggleVideoBtn.classList.toggle('hidden', state === 'incoming');
+                const activeCallActions = document.getElementById('active-call-actions');
+                const incomingCallActions = document.getElementById('incoming-call-actions');
+                const endCallBtnDecline = document.getElementById('end-call-btn-decline');
 
+                activeCallActions.classList.toggle('hidden', state !== 'active');
+                incomingCallActions.classList.toggle('hidden', state !== 'incoming');
+                
+                // The end call button is now inside the active-call-actions div.
+                // The decline button is separate for incoming calls.
+                endCallBtnDecline.onclick = () => endCall(true);
+                
                 if (state === 'incoming') {
+                    callWithUserEl.textContent = `${otherUser}`;
                     callStatusTextEl.textContent = `Incoming ${callType} call...`;
+                    localVideo.style.display = 'none'; // Hide local video on incoming call screen
+                    remoteVideo.style.display = 'none'; // Hide remote video on incoming call screen
                 } else if (state === 'outgoing') {
                     callStatusTextEl.textContent = `Calling...`;
                 } else { // active
@@ -1499,8 +1551,10 @@
 
                 // Show/hide video elements based on call type
                 const isVideoCall = callType === 'video';
-                localVideo.style.display = isVideoCall ? 'block' : 'none';
-                remoteVideo.style.display = isVideoCall ? 'block' : 'none';
+                if (state === 'active') {
+                    flipCameraCallBtn.style.display = isVideoCall ? 'flex' : 'none';
+                    remoteVideo.style.display = 'block'; // Always show remote video container
+                }
                 toggleVideoBtn.style.display = isVideoCall ? 'flex' : 'none';
             };
 
@@ -1532,6 +1586,79 @@
                     toggleVideoBtn.classList.toggle('active', !videoTrack.enabled);
                 }
             });
+
+            toggleSpeakerBtn.addEventListener('click', async () => {
+                if (!('setSinkId' in HTMLMediaElement.prototype)) {
+                    alert('Your browser does not support changing audio output devices.');
+                    return;
+                }
+
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
+
+                    if (audioOutputs.length < 2) {
+                        alert('No alternative audio output device found.');
+                        return;
+                    }
+
+                    // Simple toggle: if current is default, switch to the first non-default, and vice-versa.
+                    const currentSinkId = remoteVideo.sinkId;
+                    const defaultDevice = audioOutputs.find(d => d.deviceId === 'default');
+                    const alternativeDevice = audioOutputs.find(d => d.deviceId !== 'default');
+
+                    const newSinkId = (currentSinkId === defaultDevice.deviceId) ? alternativeDevice.deviceId : defaultDevice.deviceId;
+
+                    await remoteVideo.setSinkId(newSinkId);
+                    toggleSpeakerBtn.classList.toggle('active', newSinkId !== defaultDevice.deviceId);
+                    console.log(`Audio output switched to: ${newSinkId}`);
+                } catch (err) {
+                    console.error('Error switching audio output:', err);
+                    alert('Could not switch audio output.');
+                }
+            });
+
+            flipCameraCallBtn.addEventListener('click', async () => {
+                if (!localStream || !peerConnection) return;
+
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (!videoTrack) return;
+
+                // Toggle facing mode
+                currentCallFacingMode = currentCallFacingMode === 'user' ? 'environment' : 'user';
+
+                try {
+                    // Get new stream with the new facing mode
+                    const newStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: currentCallFacingMode },
+                        audio: true // Keep audio consistent
+                    });
+                    const newVideoTrack = newStream.getVideoTracks()[0];
+
+                    // Find the video sender and replace the track
+                    const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+                    if (sender) {
+                        await sender.replaceTrack(newVideoTrack);
+                    }
+
+                    // Stop the old video track to release the camera
+                    videoTrack.stop();
+
+                    // Update localStream with the new video track (and existing audio track)
+                    localStream.removeTrack(videoTrack);
+                    localStream.addTrack(newVideoTrack);
+
+                } catch (err) {
+                    console.error('Error flipping camera:', err);
+                    alert('Could not flip camera. It might not be supported on your device.');
+                    // Revert facing mode on error
+                    currentCallFacingMode = currentCallFacingMode === 'user' ? 'environment' : 'user';
+                }
+            });
+
+            // Add a separate handler for the decline button in the incoming call view
+            document.getElementById('end-call-btn-decline').addEventListener('click', () => endCall(true));
+
 
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
@@ -1572,7 +1699,7 @@
                                 }
 
                                 // If the current active user is the recipient, mark message as seen immediately
-                                if (activeUser === message.recipient) {
+                                if (activeUser && activeUser === message.recipient) {
                                     setTimeout(() => {
                                         fetch('/api/messages/mark-as-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser }) });
                                     }, 100);
@@ -2095,8 +2222,6 @@
                     };
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     cameraStreamTrack = stream.getTracks()[0];
-                    // Mirror the front camera view
-                    cameraStream.classList.toggle('mirrored', currentFacingMode === 'user');
                     cameraStream.srcObject = stream;
                     cameraPreviewModal.classList.remove('hidden');
                     // Ensure we are in live view

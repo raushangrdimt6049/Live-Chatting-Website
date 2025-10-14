@@ -134,6 +134,20 @@
             border-radius: 0 0 25px 25px; /* Match the chat box's bottom corners */
         }
 
+        .reply-preview {
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 15px 15px 0 0;
+            margin: -15px -15px 10px -15px;
+            font-size: 0.9rem;
+            position: relative;
+        }
+        .cancel-reply-btn {
+            position: absolute;
+            top: 5px; right: 10px;
+            background: none; border: none; font-size: 1.2rem; cursor: pointer;
+        }
+
         .chat-input {
             flex-grow: 1;
             min-width: 0; /* Crucial for allowing the input to shrink in flexbox */
@@ -239,6 +253,12 @@
             display: flex;
             flex-direction: column;
             animation: fadeInMessage 0.4s ease-out;
+            cursor: pointer; /* Make messages clickable */
+        }
+
+        .message.deleted .message-content {
+            font-style: italic;
+            color: rgba(0,0,0,0.4);
         }
 
         .message-content {
@@ -252,6 +272,24 @@
             margin-bottom: 5px; /* Space between image and meta */
             object-fit: cover;
             cursor: pointer;
+        }
+
+        .reply-context {
+            background: rgba(0,0,0,0.1);
+            padding: 8px 12px;
+            margin: -2px -7px 8px -7px; /* Adjust to align with bubble padding */
+            border-radius: 10px;
+            border-left: 3px solid #d6336c;
+            font-size: 0.85rem;
+        }
+        .message.received .reply-context {
+            border-left-color: #aaa;
+        }
+        .reply-context-sender {
+            font-weight: 600;
+        }
+        .reply-context-text {
+            opacity: 0.8;
         }
         .message-video {
             max-width: 100%;
@@ -819,6 +857,33 @@
             text-shadow: none;
         }
 
+        /* --- Message Actions Popover --- */
+        #message-actions-popover {
+            position: absolute;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1500;
+            overflow: hidden;
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        #message-actions-popover.visible {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+        .popover-action {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
+        .popover-action:hover { background-color: #f0f0f0; }
 
     </style>
 </head>
@@ -885,6 +950,12 @@
         </div>
     </div>
 
+    <!-- Popover for Message Actions -->
+    <div id="message-actions-popover" class="hidden">
+        <button class="popover-action" id="action-reply">Reply</button>
+        <button class="popover-action" id="action-delete">Delete for me</button>
+    </div>
+
     <!-- Main container for the two chat boxes -->
     <div class="chat-app-container hidden" id="chat-app-container">
 
@@ -905,6 +976,10 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="raushan-form">
+                <div class="reply-preview hidden" id="raushan-reply-preview">
+                    <button type="button" class="cancel-reply-btn" data-user="raushan">&times;</button>
+                    <div class="reply-context-text"></div>
+                </div>
                 <input type="file" id="raushan-file-input" class="hidden" accept="image/*,video/*">
                 <button type="button" class="attach-button" data-user="raushan" title="Attach File">📎</button>
                 <button type="button" class="camera-button" data-user="raushan" title="Use Camera">📸</button>
@@ -936,6 +1011,10 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="nisha-form">
+                <div class="reply-preview hidden" id="nisha-reply-preview">
+                    <button type="button" class="cancel-reply-btn" data-user="nisha">&times;</button>
+                    <div class="reply-context-text"></div>
+                </div>
                 <input type="file" id="nisha-file-input" class="hidden" accept="image/*,video/*">
                 <button type="button" class="attach-button" data-user="nisha" title="Attach File">📎</button>
                 <button type="button" class="camera-button" data-user="nisha" title="Use Camera">📸</button>
@@ -1033,13 +1112,21 @@
             const sendAttachmentBtn = document.getElementById('send-attachment-btn');
             const reattachFileBtn = document.getElementById('reattach-file-btn');
 
+            // New elements for message actions
+            const messageActionsPopover = document.getElementById('message-actions-popover');
+            const actionReplyBtn = document.getElementById('action-reply');
+            const actionDeleteBtn = document.getElementById('action-delete');
+
+            // New elements for reply preview
+            const replyPreviews = document.querySelectorAll('.reply-preview');
+
             // New element for notification sound
             const notificationSound = document.getElementById('notification-sound');
 
             let activeUser = null;
             const PASSWORDS = {
-                raushan: "4gh4m01r",
-                nisha: "4gh4m01r"
+                raushan: "18051104143",
+                nisha: "11041805143"
             };
             let activeUserForAttachment = null;
 
@@ -1047,6 +1134,8 @@
             let nishaTypingTimer;
 
             let socket;
+            let currentMessageForAction = null; // Store data of the message being acted upon
+            let replyInfo = { raushan: null, nisha: null }; // Store reply context for each user
             let unreadCountInterval;
             const messageElements = new Map(); // To map message ID to its DOM element
 
@@ -1097,6 +1186,18 @@
                                         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser })
                                     });
                                 }, 100);
+                            }
+                            break;
+                        case 'message_deleted':
+                            const { messageId, deletedFor } = eventData.payload;
+                            const messageTupleToDelete = messageElements.get(messageId);
+                            if (messageTupleToDelete) {
+                                const messageEl = deletedFor === 'raushan' ? messageTupleToDelete.raushan : messageTupleToDelete.nisha;
+                                if (messageEl) {
+                                    // Instead of removing, show it as deleted
+                                    messageEl.classList.add('deleted');
+                                    messageEl.innerHTML = `<span class="message-content">This message was deleted.</span>`;
+                                }
                             }
                             break;
                         case 'typing':
@@ -1163,12 +1264,31 @@
 
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
-                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
+                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt, reply_to } = messageData;
 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
                     const messageDiv = document.createElement('div');
                     messageDiv.classList.add('message');
+                    messageDiv.dataset.messageId = id; // Store ID for actions
+
+                    // Render reply context if it exists
+                    if (reply_to && reply_to.text) {
+                        const replyContextDiv = document.createElement('div');
+                        replyContextDiv.className = 'reply-context';
+
+                        const senderSpan = document.createElement('div');
+                        senderSpan.className = 'reply-context-sender';
+                        senderSpan.textContent = reply_to.sender === 'raushan' ? 'Raushan_143' : 'Nisha_143';
+
+                        const textSpan = document.createElement('div');
+                        textSpan.className = 'reply-context-text';
+                        textSpan.textContent = reply_to.text.substring(0, 50) + (reply_to.text.length > 50 ? '...' : '');
+
+                        replyContextDiv.appendChild(senderSpan);
+                        replyContextDiv.appendChild(textSpan);
+                        messageDiv.appendChild(replyContextDiv);
+                    }
 
                     if (msgContent.imageUrl) {
                         const imageEl = document.createElement('img');
@@ -1190,7 +1310,6 @@
                         videoEl.controls = true;
                         messageDiv.appendChild(videoEl);
                     }
-
 
                     if (msgContent.audioUrl) {
                         // Create a hidden audio element to control playback
@@ -1407,11 +1526,16 @@
             // Event listener for Raushan's form
             raushanForm.addEventListener('submit', async (e) => {
                 e.preventDefault(); // Prevent page reload
+                const text = raushanInput.value;
+                if (!text.trim()) return;
+
                 const messageData = {
                     sender: 'raushan',
-                    content: { text: raushanInput.value },
+                    content: { text: text },
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    reply_to: replyInfo.raushan // Add reply info if it exists
                 };
+
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1419,27 +1543,35 @@
                 });
                 clearTimeout(raushanTypingTimer); // Stop the typing timer
                 raushanInput.value = ''; // Clear input field
+                hideReplyPreview('raushan'); // Hide reply preview after sending
             });
 
             // Event listener for Nisha's form
             nishaForm.addEventListener('submit', async (e) => {
                 e.preventDefault(); // Prevent page reload
+                const text = nishaInput.value;
+                if (!text.trim()) return;
+
                 const messageData = {
                     sender: 'nisha',
                     content: { text: nishaInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    reply_to: replyInfo.nisha // Add reply info if it exists
                 };
+
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(messageData)
                 });
+
                 clearTimeout(nishaTypingTimer); // Stop the typing timer
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify({ type: 'stop_typing', user: 'nisha' }));
                 }
                 nishaInput.value = ''; // Clear input field
             });
+
 
             // --- Send message on Enter key press ---
             raushanInput.addEventListener('keydown', (e) => {
@@ -1554,6 +1686,10 @@
                 const messageData = { sender: activeUserForAttachment, content, timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
                 await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
                 closeAttachmentPreview();
+            });
+
+            document.addEventListener('click', () => {
+                messageActionsPopover.classList.remove('visible');
             });
 
             // --- Camera Button Logic ---
@@ -1788,6 +1924,70 @@
                 inputArea.querySelector('.voice-record-button').classList.remove('hidden');
                 inputArea.querySelector('button[type="submit"]').classList.remove('hidden');
             }
+
+            // --- Message Actions (Reply/Delete) ---
+            function showMessageActions(messageEl, event) {
+                event.stopPropagation();
+                const messageId = messageEl.dataset.messageId;
+                const messageTuple = messageElements.get(parseInt(messageId));
+                if (!messageTuple) return;
+
+                // Determine which user's chat window this is in
+                const chatBox = messageEl.closest('.chat-box');
+                const actingUser = chatBox.id.includes('raushan') ? 'raushan' : 'nisha';
+
+                currentMessageForAction = {
+                    id: messageId,
+                    sender: messageEl.classList.contains('sent') ? actingUser : (actingUser === 'raushan' ? 'nisha' : 'raushan'),
+                    content: messageEl.querySelector('.message-content')?.textContent || '[Attachment]',
+                    actingUser: actingUser
+                };
+
+                const rect = messageEl.getBoundingClientRect();
+                messageActionsPopover.style.top = `${rect.top + window.scrollY}px`;
+                messageActionsPopover.style.left = `${rect.left + rect.width / 2}px`;
+                messageActionsPopover.style.transform = 'translateX(-50%) translateY(-100%)';
+                messageActionsPopover.classList.add('visible');
+            }
+
+            // Add delegate event listener to chat message containers
+            [raushanMessages, nishaMessages].forEach(container => {
+                container.addEventListener('click', (e) => {
+                    const messageEl = e.target.closest('.message');
+                    if (messageEl && !messageEl.classList.contains('deleted')) {
+                        showMessageActions(messageEl, e);
+                    }
+                });
+            });
+
+            actionReplyBtn.addEventListener('click', () => {
+                if (!currentMessageForAction) return;
+                const { id, sender, content, actingUser } = currentMessageForAction;
+                
+                replyInfo[actingUser] = { id, sender, text: content };
+
+                const preview = document.getElementById(`${actingUser}-reply-preview`);
+                preview.querySelector('.reply-context-text').textContent = `Replying to ${sender}: "${content.substring(0, 30)}..."`;
+                preview.classList.remove('hidden');
+                
+                messageActionsPopover.classList.remove('visible');
+                document.getElementById(`${actingUser}-input`).focus();
+            });
+
+            document.querySelectorAll('.cancel-reply-btn').forEach(btn => {
+                btn.addEventListener('click', () => hideReplyPreview(btn.dataset.user));
+            });
+
+            function hideReplyPreview(user) {
+                replyInfo[user] = null;
+                document.getElementById(`${user}-reply-preview`).classList.add('hidden');
+            }
+
+            actionDeleteBtn.addEventListener('click', async () => {
+                if (!currentMessageForAction) return;
+                await fetch(`/api/messages/${currentMessageForAction.id}?user=${currentMessageForAction.actingUser}`, { method: 'DELETE' });
+                messageActionsPopover.classList.remove('visible');
+            });
 
             // --- Image Zoom Logic ---
             const closeZoomModal = () => {

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Love Chatting</title>
+    <!-- Add a link to your favicon -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <style>
         /* --- Google Font --- */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
@@ -961,11 +963,6 @@
             display: none;
         }
 
-        .call-modal-overlay.video-outgoing .call-header {
-            display: none; /* Hide header only when video call is ringing */
-        }
-
-
         .call-header #call-timer {
             font-size: 1rem;
             font-weight: 300;
@@ -1044,6 +1041,7 @@
             z-index: 2; /* Ensure it's above the background but below controls */
             transform: scaleX(-1); /* Flip horizontally for a mirror effect */
         }
+        #remote-video { transition: all 0.3s ease; }
 
         #local-video {
             /* Hide self-view as requested for a cleaner look */
@@ -1123,6 +1121,22 @@
         .call-control-btn.active { background-color: #d6336c; }
 
 
+        /* --- Immersive Video Call View --- */
+        .call-modal-overlay.immersive-view .call-header,
+        .call-modal-overlay.immersive-view .call-controls {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .call-modal-overlay.immersive-view #remote-video {
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            border-radius: 0;
+            border: none;
+            object-fit: contain; /* Fills the screen without cropping, may add letterboxing */
+        }
     </style>
 </head>
 <body>
@@ -1434,6 +1448,7 @@
             let isCallInProgress = false;
             let callOfferData = null;
             let callRecipient = null; // New variable to track the outgoing call recipient
+            let outgoingCallType = null; // New variable to track the call type for the initiator
             let callTimerInterval = null;
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
@@ -1465,6 +1480,7 @@
                 }
 
                 callRecipient = recipient; // Store the recipient for the outgoing call
+                outgoingCallType = callType; // Store the call type for the initiator
                 currentCallFacingMode = 'user'; // Reset to front camera for new calls
                 try {
                     const constraints = {
@@ -1547,11 +1563,11 @@
             const handleCallAnswer = async (data) => {
                 if (peerConnection) {
                     // The user who initiated the call receives the answer
-                    const callType = callOfferData?.callType || 'video'; // Get call type from original offer
+                    const callType = outgoingCallType; // Use the stored call type for the initiator
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
                     
                     // This is the key fix: Update the UI to the 'active' state for the sender
-                    showCallModal('active', data.from, callType);
+                    showCallModal('active', callRecipient, callType); // Now uses the correct callType
                 }
             };
 
@@ -1624,7 +1640,15 @@
                 isCallInProgress = false;
                 callOfferData = null;
                 callRecipient = null; // Clear the recipient on call end
+                outgoingCallType = null; // Clear the outgoing call type
             };
+
+            remoteVideo.addEventListener('click', () => {
+                // Only allow toggling immersive view during an active video call
+                if (isCallInProgress && remoteVideo.srcObject) {
+                    callModal.classList.toggle('immersive-view');
+                }
+            });
             const startCallTimer = () => {
                 let seconds = 0;
                 callTimerEl.textContent = '0:00';
@@ -1659,7 +1683,7 @@
                 callTimerEl.classList.add('hidden');
 
                 const isVideoCall = callType === 'video';
-
+                
                 // Add a class to the overlay for video-specific styling
                 callModal.classList.toggle('audio-active', !isVideoCall && state === 'active');
                 callModal.classList.toggle('video-outgoing', isVideoCall && state === 'outgoing');
@@ -1667,7 +1691,7 @@
 
                 // --- UI State Management ---
                 callHeader.classList.toggle('hidden-on-audio-call', !isVideoCall && state === 'incoming');
-                callContainer.classList.toggle('audio-active-view', !isVideoCall && state === 'active');
+                callContainer.classList.toggle('audio-active-view', !isVideoCall && (state === 'active' || state === 'outgoing'));
                 // Hide the avatar container ONLY for active video calls, not incoming/outgoing ones.
                 audioVisualizer.classList.add('hidden'); // Hide phone icon by default
 
@@ -1692,29 +1716,21 @@
                     incomingCallActions.classList.add('hidden');
                     activeCallActions.classList.remove('hidden');
 
-                    if (isVideoCall) {
-                        // For outgoing video, the view is mostly black with controls.
-                        callWithUserHeaderEl.textContent = '';
-                        callStatusTextHeaderEl.textContent = ''; // Header is not used for this view
-                    } else {
-                        // For outgoing audio, show the "active call" UI immediately for the sender.
-                        callWithUserHeaderEl.textContent = ''; // Remove username from header
-                        callStatusTextHeaderEl.textContent = ''; // Remove redundant "Calling..." from header
-                    }
-                    // For both audio and video outgoing calls, show the avatar view
-                    if (state === 'outgoing') {
-                        mainCallInfoContainer.classList.remove('hidden');
-                        mainCallAvatar.textContent = otherUser.charAt(0);
-                        mainCallWithUser.textContent = otherUser;
-                        
-                        // Check if the other user is online to show "Ringing..." vs "Calling..."
-                        const otherUserStatusIndicator = document.getElementById(`${user}-status`);
-                        if (otherUserStatusIndicator && otherUserStatusIndicator.classList.contains('online')) {
-                            mainCallStatus.textContent = `Ringing...`;
-                        } else {
-                            mainCallStatus.textContent = `Calling...`;
-                        }
-                    }
+                    // Set the header text based on the call type.
+                    const callActionText = isVideoCall ? "Video Calling to" : "Audio Calling to"; // This was correct
+                    callWithUserHeaderEl.textContent = `${callActionText} ${otherUser}`;
+                    callStatusTextHeaderEl.textContent = ''; // Clear any previous status from the header
+
+                    // Show the avatar and status for both audio and video outgoing calls.
+                    mainCallInfoContainer.classList.remove('hidden');
+                    mainCallAvatar.textContent = otherUser.charAt(0);
+                    mainCallWithUser.textContent = ''; // The name is now in the header
+
+                    // Check if the other user is online to show "Ringing..." vs "Calling..."
+                    const otherUserStatusIndicator = document.getElementById(`${user}-status`);
+                    mainCallStatus.textContent = (otherUserStatusIndicator && otherUserStatusIndicator.classList.contains('online'))
+                        ? `Ringing...`
+                        : `Calling...`;
 
                     // Set visibility for all active call buttons based on call type
                     flipCameraCallBtn.style.display = isVideoCall ? 'flex' : 'none';
@@ -1722,25 +1738,18 @@
                     toggleMicBtn.style.display = 'flex';
                     toggleSpeakerBtn.style.display = 'flex';
                     endCallBtn.style.display = 'flex';
-                } else { // active
+                } else { // active call state
                     incomingCallActions.classList.add('hidden');
                     activeCallActions.classList.remove('hidden');
 
-                    if (!isVideoCall) {
-                        // Active Audio Call - Show big avatar in center, info in header
-                        mainCallAvatar.textContent = otherUser.charAt(0);
-                        audioVisualizer.classList.add('hidden');
-                    } else {
-                        // Active Video Call - Set header text as requested
-                        callWithUserHeaderEl.textContent = `Video Call With ${otherUser}`;
-                        // Active Video Call - Show connected status
-                        callStatusTextHeaderEl.textContent = ''; // Remove "Connected" text as requested
-                        audioVisualizer.classList.add('hidden'); // Ensure pulsing icon is hidden for video calls
-                    }
+                    // For active audio calls, ensure the avatar is visible and shows the correct initial
+                    mainCallAvatar.textContent = otherUser.charAt(0); // This was correct
+                    // Ensure the pulsing phone icon is hidden once the call is active
+                    audioVisualizer.classList.add('hidden');
 
                     // For both active audio and video calls, start the timer.
                     // This block now handles the final UI state for an active call for BOTH users.
-                    callWithUserHeaderEl.textContent = isVideoCall ? `Video Call With ${otherUser}` : `Call with ${otherUser}`;
+                    callWithUserHeaderEl.textContent = isVideoCall ? `Video Call With ${otherUser}` : `Audio Call with ${otherUser}`;
                     callStatusTextHeaderEl.textContent = ''; // Clear "Ringing..." or "Connected"
                     mainCallWithUser.textContent = ''; // Hide the centered name
                     mainCallStatus.textContent = ''; // Hide the centered status text
@@ -2423,6 +2432,9 @@
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     cameraStreamTrack = stream.getTracks()[0];
                     cameraStream.srcObject = stream;
+
+                    // **THE FIX**: Add/remove 'mirrored' class based on which camera is active.
+                    cameraStream.classList.toggle('mirrored', currentFacingMode === 'user');
                     cameraPreviewModal.classList.remove('hidden');
                     // Ensure we are in live view
                     cameraStream.classList.remove('hidden');
@@ -2582,7 +2594,6 @@
                 // Hide regular input elements
                 inputArea.querySelector('.chat-input').classList.add('hidden');
                 inputArea.querySelector('.attach-button').classList.add('hidden');
-                inputArea.querySelector('.attach-button').classList.add('hidden');
                 inputArea.querySelector('.camera-button').classList.add('hidden');
                 inputArea.querySelector('.voice-record-button').classList.add('hidden');
                 inputArea.querySelector('button[type="submit"]').classList.add('hidden');
@@ -2628,7 +2639,6 @@
                 audioPreview.classList.add('hidden');
                 inputArea.querySelector('.chat-input').classList.remove('hidden');
                 inputArea.querySelector('.attach-button').classList.remove('hidden');
-                inputArea.querySelector('.attach-button').classList.remove('hidden');
                 inputArea.querySelector('.camera-button').classList.remove('hidden');
                 inputArea.querySelector('.voice-record-button').classList.remove('hidden');
                 inputArea.querySelector('button[type="submit"]').classList.remove('hidden');
@@ -2647,7 +2657,7 @@
             // --- Login and View Switching Logic ---
             userSelectionBoxes.forEach(box => {
                 box.addEventListener('click', () => {
-                    activeUser = box.dataset.user;
+                    activeUser = box.dataset.user; // Set the user that is trying to log in
                     loginForUser.textContent = `Login for ${activeUser.charAt(0).toUpperCase() + activeUser.slice(1)}_143`;
                     loginModal.classList.add('visible');
                     setTimeout(() => passwordInput.focus(), 100);
@@ -2657,16 +2667,17 @@
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 if (passwordInput.value === PASSWORDS[activeUser]) {
-                    // Correct password
+                    // Correct password, proceed with login
                     loginModal.classList.remove('visible');
                     selectionContainer.classList.add('hidden');
                     chatAppContainer.classList.remove('hidden');
                     document.body.classList.add('chat-active'); // Apply the new background
-                    
+
                     clearInterval(unreadCountInterval); // Stop polling for unread counts
                     document.getElementById('raushan-notification').classList.add('hidden');
                     document.getElementById('nisha-notification').classList.add('hidden');
 
+                    // Show the correct user's chat window
                     if (activeUser === 'raushan') {
                         document.getElementById('raushan-chat').classList.remove('hidden');
                         document.getElementById('nisha-chat').classList.add('hidden');
@@ -2675,13 +2686,9 @@
                         document.getElementById('raushan-chat').classList.add('hidden');
                     }
 
-                    // Re-establish WebSocket with the correct user context
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.close(); // Close old connection if any
-                    } 
-                    setupWebSocket(); // Create new connection, which will register the user on 'open'
-
-                    await initializeApp(true); // Fetch fresh messages
+                    // **CRITICAL FIX**: Initialize app data first, then establish the WebSocket connection.
+                    await initializeApp();
+                    setupWebSocket(); // This will now correctly register the activeUser.
                 } else {
                     // Incorrect password
                     errorMessage.textContent = 'Incorrect Password!'; 
@@ -2701,6 +2708,9 @@
             switchUserButtons.forEach(button => {
                 button.addEventListener('click', () => {
                     chatAppContainer.classList.add('hidden');
+                    document.getElementById('raushan-chat').classList.add('hidden');
+                    document.getElementById('nisha-chat').classList.add('hidden');
+
                     selectionContainer.classList.remove('hidden');
                     document.body.classList.remove('chat-active'); // Revert to the original background
                     activeUser = null;
@@ -2708,6 +2718,7 @@
                     if (socket && socket.readyState === WebSocket.OPEN) {
                         socket.close();
                     }
+                    socket = null; // Fully clear the socket variable
 
                     updateUnreadCounts(); // Check counts immediately
                     unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Restart polling
@@ -2799,10 +2810,10 @@
             }
 
             // --- Load and Render Initial Data ---
-            async function initializeApp(isLogin = false) {
+            async function initializeApp() {
                 try {
                     const response = await fetch('/api/messages');
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); 
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const messages = await response.json();
                     
                     raushanMessages.innerHTML = ''; // Clear existing messages
@@ -2815,13 +2826,14 @@
             }
             
             // Initial setup when page loads
-            initializeApp(); // Fetch initial messages
-            setupWebSocket(); // Establish a baseline WebSocket connection
+            // Do NOT fetch messages or set up WebSocket on initial load. This happens after login.
             updateUnreadCounts();
             unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Poll every 5 seconds
 
         });
     </script>
 
+</body>
+</html>
 </body>
 </html>

@@ -56,14 +56,15 @@ wss.on('connection', (ws) => {
 
         // --- WebRTC Signaling and General Message Forwarding ---
         const recipientUser = data.payload?.to;
+        const isSignalingMessage = data.type.startsWith('call-') || ['ice-candidate', 'user-busy'].includes(data.type);
 
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.
-        if (recipientUser && (data.type.startsWith('call-') || data.type === 'ice-candidate' || data.type === 'user-busy')) {
+        if (recipientUser && isSignalingMessage) {
                 const recipientWs = clients.get(recipientUser);
                 if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
                     // Forward the message to the specific recipient
-                    recipientWs.send(JSON.stringify(data));
+                    recipientWs.send(rawMessage.toString()); // Forward the original raw message
                 } else {
                     console.log(`Call recipient '${recipientUser}' not found or not connected.`);
                 }

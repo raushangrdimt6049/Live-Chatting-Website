@@ -171,6 +171,70 @@
             color: #333;
         }
 
+        /* --- Header Menu & Dropdown --- */
+        .header-menu {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+        }
+
+        .menu-toggle-button {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .menu-toggle-button span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background-color: #d6336c;
+            border-radius: 1px;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .menu-dropdown {
+            position: absolute;
+            top: 50px; /* Position below the button */
+            right: 0;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            width: 200px;
+            overflow: hidden;
+            z-index: 10;
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .menu-dropdown.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .menu-dropdown button {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 0.9rem;
+            color: #333;
+        }
+        .menu-dropdown button:hover { background-color: #f0f0f0; transform: none; }
         .chat-input:focus {
             outline: none;
             box-shadow: 0 0 0 2px #d6336c;
@@ -1055,12 +1119,14 @@
                         <span class="status-text">Offline</span>
                     </div>
                 </div>
-                <div class="header-icons">
-                    <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹</button>
-                    <button class="call-button" data-user="raushan" data-call-type="audio" title="Audio Call">📞</button>
-                    <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
-                    <button class="clear-history-button" title="Clear History">🗑️</button>
-                    <button class="switch-user-button" title="Switch User">↩️</button>
+                <div class="header-menu">
+                    <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹 Video Call</button>
+                        <button class="call-button" data-user="raushan" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
+                        <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
+                        <button class="clear-history-button" title="Clear History">🗑️ Clear History</button>
+                        <button class="switch-user-button" title="Switch User">↩️ Logout</button>
+                    </div>
                 </div>
             </div>
             <div class="chat-messages" id="raushan-messages">
@@ -1094,12 +1160,14 @@
                         <span class="status-text">Offline</span>
                     </div>
                 </div>
-                <div class="header-icons">
-                    <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹</button>
-                    <button class="call-button" data-user="nisha" data-call-type="audio" title="Audio Call">📞</button>
-                    <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
-                    <button class="clear-history-button" title="Clear History">🗑️</button>
-                    <button class="switch-user-button" title="Switch User">↩️</button>
+                <div class="header-menu">
+                    <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹 Video Call</button>
+                        <button class="call-button" data-user="nisha" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
+                        <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
+                        <button class="clear-history-button" title="Clear History">🗑️ Clear History</button>
+                        <button class="switch-user-button" title="Switch User">↩️ Logout</button>
+                    </div>
                 </div>
             </div>
             <div class="chat-messages" id="nisha-messages">
@@ -1252,10 +1320,225 @@
                 return `${day}-${month}-${year}`;
             }
 
-            function formatSeenTime(isoString) {
+            // --- WebRTC Call Logic ---
+
+            const startCall = async (callType, recipient) => {
+                if (isCallInProgress) {
+                    alert("A call is already in progress.");
+                    return;
+                }
+
+                try {
+                    const constraints = {
+                        video: callType === 'video',
+                        audio: true
+                    };
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    localVideo.srcObject = localStream;
+                    isCallInProgress = true;
+
+                    setupPeerConnection(recipient);
+
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+
+                    socket.send(JSON.stringify({
+                        type: 'call-offer',
+                        payload: {
+                            from: activeUser,
+                            to: recipient,
+                            offer: offer,
+                            callType: callType
+                        }
+                    }));
+
+                    showCallModal('outgoing', recipient, callType);
+                } catch (err) {
+                    console.error("Error starting call:", err);
+                    alert("Could not start call. Please check camera/microphone permissions.");
+                    isCallInProgress = false;
+                }
+            };
+
+            const handleIncomingCall = (data) => {
+                if (isCallInProgress) {
+                    // User is busy, reject the call
+                    socket.send(JSON.stringify({ type: 'user-busy', payload: { from: activeUser, to: data.from } }));
+                    return;
+                }
+
+                callOfferData = data; // Store the offer
+                isCallInProgress = true;
+                showCallModal('incoming', data.from, data.callType);
+            };
+
+            const acceptCall = async () => {
+                if (!callOfferData) return;
+
+                try {
+                    const constraints = {
+                        video: callOfferData.callType === 'video',
+                        audio: true
+                    };
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    localVideo.srcObject = localStream;
+
+                    setupPeerConnection(callOfferData.from);
+
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(callOfferData.offer));
+
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+
+                    socket.send(JSON.stringify({
+                        type: 'call-answer',
+                        payload: {
+                            from: activeUser,
+                            to: callOfferData.from,
+                            answer: answer
+                        }
+                    }));
+
+                    showCallModal('active', callOfferData.from, callOfferData.callType);
+                } catch (err) {
+                    console.error("Error accepting call:", err);
+                    endCall(true);
+                }
+            };
+
+            const handleCallAnswer = async (data) => {
+                if (peerConnection) {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    showCallModal('active', data.from, callOfferData?.callType || 'call');
+                }
+            };
+
+            const handleNewICECandidate = (data) => {
+                if (peerConnection) {
+                    const candidate = new RTCIceCandidate(data.candidate);
+                    peerConnection.addIceCandidate(candidate).catch(e => console.error("Error adding received ICE candidate", e));
+                }
+            };
+
+            const setupPeerConnection = (recipient) => {
+                peerConnection = new RTCPeerConnection(iceServers);
+
+                // Add local stream tracks to the connection
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle incoming remote stream
+                peerConnection.ontrack = event => {
+                    remoteVideo.srcObject = event.streams[0];
+                };
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = event => {
+                    if (event.candidate) {
+                        socket.send(JSON.stringify({
+                            type: 'ice-candidate',
+                            payload: {
+                                to: recipient,
+                                candidate: event.candidate
+                            }
+                        }));
+                    }
+                };
+
+                peerConnection.oniceconnectionstatechange = () => {
+                    if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'closed' || peerConnection.iceConnectionState === 'failed') {
+                        endCall(false);
+                    }
+                };
+            };
+
+            const endCall = (isInitiator) => {
+                if (!isCallInProgress) return;
+
+                if (isInitiator && socket && socket.readyState === WebSocket.OPEN) {
+                    const recipient = callOfferData?.from || (peerConnection ? (callWithUserEl.textContent.toLowerCase().includes('raushan') ? 'raushan' : 'nisha') : null);
+                    if (recipient) {
+                        socket.send(JSON.stringify({ type: 'call-end', payload: { to: recipient } }));
+                    }
+                }
+
+                if (peerConnection) {
+                    peerConnection.close();
+                    peerConnection = null;
+                }
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                    localStream = null;
+                }
+
+                localVideo.srcObject = null;
+                remoteVideo.srcObject = null;
+                callModal.classList.add('hidden');
+                isCallInProgress = false;
+                callOfferData = null;
+            };
+
+            const showCallModal = (state, user, callType) => {
+                callModal.classList.remove('hidden');
+                const otherUser = user.charAt(0).toUpperCase() + user.slice(1);
+                callWithUserEl.textContent = `Call with ${otherUser}`;
+
+                acceptCallBtn.classList.toggle('hidden', state !== 'incoming');
+                endCallBtn.classList.toggle('hidden', state === 'incoming');
+                toggleMicBtn.classList.toggle('hidden', state === 'incoming');
+                toggleVideoBtn.classList.toggle('hidden', state === 'incoming');
+
+                if (state === 'incoming') {
+                    callStatusTextEl.textContent = `Incoming ${callType} call...`;
+                } else if (state === 'outgoing') {
+                    callStatusTextEl.textContent = `Calling...`;
+                } else { // active
+                    callStatusTextEl.textContent = 'Connected';
+                }
+
+                // Show/hide video elements based on call type
+                const isVideoCall = callType === 'video';
+                localVideo.style.display = isVideoCall ? 'block' : 'none';
+                remoteVideo.style.display = isVideoCall ? 'block' : 'none';
+                toggleVideoBtn.style.display = isVideoCall ? 'flex' : 'none';
+            };
+
+            // --- Event Listeners for Call Controls ---
+            callButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const callType = button.dataset.callType;
+                    const currentUser = button.dataset.user;
+                    const recipient = currentUser === 'raushan' ? 'nisha' : 'raushan';
+                    startCall(callType, recipient);
+                });
+            });
+
+            acceptCallBtn.addEventListener('click', acceptCall);
+            endCallBtn.addEventListener('click', () => endCall(true));
+
+            toggleMicBtn.addEventListener('click', () => {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    toggleMicBtn.classList.toggle('active', !audioTrack.enabled);
+                }
+            });
+
+            toggleVideoBtn.addEventListener('click', () => {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    toggleVideoBtn.classList.toggle('active', !videoTrack.enabled);
+                }
+            });
+
+            function formatSeenDate(isoString) {
                 const date = new Date(isoString);
-                // HH:MM:SS format
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                const year = date.getFullYear();
+                return `${day}-${month}-${year}`;
             }
 
             function setupWebSocket() {
@@ -1377,16 +1660,10 @@
                             endCall(false); // Don't send another end signal
                             break;
                         case 'call-reject':
-                            if (isCallInProgress) {
-                                alert(`${eventData.payload.from} rejected the call.`);
-                                endCall(false);
-                            }
+                            alert(`${eventData.payload.from} rejected the call.`); endCall(false);
                             break;
                         case 'user-busy':
-                            if (isCallInProgress) {
-                                alert(`${eventData.payload.recipient} is already in another call.`);
-                                endCall(false);
-                            }
+                            alert(`${eventData.payload.recipient} is busy.`); endCall(false);
                             break;
                     }
                 };
@@ -2149,6 +2426,27 @@
                     initializeApp(); // Re-fetch and re-render
                 });
             })
+
+            // --- Header Menu Logic (with animation) ---
+            document.querySelectorAll('.menu-toggle-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent the window click from closing it immediately
+                    const dropdown = button.nextElementSibling;
+                    // Hide other open dropdowns
+                    document.querySelectorAll('.menu-dropdown.visible').forEach(d => {
+                        if (d !== dropdown) d.classList.remove('visible');
+                    });
+                    // Toggle the current one
+                    dropdown.classList.toggle('visible');
+                });
+            });
+
+            // Close dropdown when clicking anywhere else
+            window.addEventListener('click', () => {
+                document.querySelectorAll('.menu-dropdown').forEach(dropdown => {
+                    dropdown.classList.remove('visible');
+                });
+            });
 
             // --- Unread Count Logic ---
             async function updateUnreadCounts() {

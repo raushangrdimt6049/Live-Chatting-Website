@@ -87,16 +87,16 @@ wss.on('connection', (ws) => {
         console.log('Client disconnected');
         // Remove user from the clients map on disconnect
         if (ws.user) {
-            const disconnectedUser = ws.user;
-            clients.delete(disconnectedUser);
-            console.log(`User '${disconnectedUser}' connection closed.`);
+            const disconnectedUser = ws.user; // Get the user before deleting
+            clients.delete(disconnectedUser); // Remove the user from the active map
+            console.log(`User '${disconnectedUser}' connection closed. Starting grace period.`);
 
             // Wait for a short period before broadcasting the offline status.
             // This gives the client a chance to reconnect without appearing offline.
             setTimeout(() => {
                 // If the user has NOT reconnected within the timeout, then broadcast offline status.
                 if (!clients.has(disconnectedUser)) {
-                    console.log(`User '${disconnectedUser}' is offline. Broadcasting status.`);
+                    console.log(`Grace period ended. User '${disconnectedUser}' is offline. Broadcasting status.`);
                     wss.clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
                             client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));

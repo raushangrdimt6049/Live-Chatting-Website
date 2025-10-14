@@ -103,9 +103,34 @@
             color: #d6336c; /* A lovely pink color */
             text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
             display: flex;
-            justify-content: space-between;
+            justify-content: center; /* Center content */
             align-items: center;
+            flex-wrap: wrap; /* Allow items to wrap to the next line */
+            gap: 10px 20px; /* Add row and column gap */
         }
+
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1; /* Allow it to take space */
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: #888;
+            margin-top: 2px;
+        }
+        .status-dot { width: 8px; height: 8px; background-color: #888; border-radius: 50%; transition: background-color 0.3s; }
+        .status-indicator.online .status-dot { background-color: #2ecc71; }
+        .status-indicator.online .status-text { color: #2ecc71; }
+
+
+
 
         .chat-messages {
             flex-grow: 1;
@@ -132,20 +157,6 @@
             border-top: 1px solid rgba(255, 255, 255, 0.18);
             background: rgba(255, 255, 255, 0.4); /* Added background to make it clearer */
             border-radius: 0 0 25px 25px; /* Match the chat box's bottom corners */
-        }
-
-        .reply-preview {
-            padding: 8px 15px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 15px 15px 0 0;
-            margin: -15px -15px 10px -15px;
-            font-size: 0.9rem;
-            position: relative;
-        }
-        .cancel-reply-btn {
-            position: absolute;
-            top: 5px; right: 10px;
-            background: none; border: none; font-size: 1.2rem; cursor: pointer;
         }
 
         .chat-input {
@@ -253,12 +264,6 @@
             display: flex;
             flex-direction: column;
             animation: fadeInMessage 0.4s ease-out;
-            cursor: pointer; /* Make messages clickable */
-        }
-
-        .message.deleted .message-content {
-            font-style: italic;
-            color: rgba(0,0,0,0.4);
         }
 
         .message-content {
@@ -272,24 +277,6 @@
             margin-bottom: 5px; /* Space between image and meta */
             object-fit: cover;
             cursor: pointer;
-        }
-
-        .reply-context {
-            background: rgba(0,0,0,0.1);
-            padding: 8px 12px;
-            margin: -2px -7px 8px -7px; /* Adjust to align with bubble padding */
-            border-radius: 10px;
-            border-left: 3px solid #d6336c;
-            font-size: 0.85rem;
-        }
-        .message.received .reply-context {
-            border-left-color: #aaa;
-        }
-        .reply-context-sender {
-            font-weight: 600;
-        }
-        .reply-context-text {
-            opacity: 0.8;
         }
         .message-video {
             max-width: 100%;
@@ -615,6 +602,24 @@
             background: none; border: none; font-size: 1.5rem; color: #d6336c; cursor: pointer; transition: transform 0.2s;
         }
 
+        .call-button {
+            position: static;
+            transform: none;
+            background: none;
+            border: none;
+            font-size: 1.4rem; /* Slightly smaller than other icons */
+            color: #d6336c;
+            cursor: pointer;
+            transition: transform 0.2s;
+            padding: 0 5px; /* Add some spacing */
+        }
+
+        .clear-history-button:hover,
+        .switch-user-button:hover,
+        .refresh-chat-button:hover,
+        .call-button:hover {
+            transform: scale(1.15);
+        }
         /* --- Main Page Header --- */
         .main-header {
             font-size: 2.8rem;
@@ -857,33 +862,100 @@
             text-shadow: none;
         }
 
-        /* --- Message Actions Popover --- */
-        #message-actions-popover {
-            position: absolute;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 1500;
-            overflow: hidden;
-            opacity: 0;
-            transform: scale(0.95);
-            pointer-events: none;
-            transition: opacity 0.15s ease, transform 0.15s ease;
-        }
-        #message-actions-popover.visible {
-            opacity: 1;
-            transform: scale(1);
-            pointer-events: auto;
-        }
-        .popover-action {
-            padding: 10px 20px;
-            background: none;
-            border: none;
+        /* --- Call Modal Styles --- */
+        .call-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            text-align: left;
-            cursor: pointer;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            z-index: 4000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
         }
-        .popover-action:hover { background-color: #f0f0f0; }
+
+        .call-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #remote-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1; /* Behind other call content */
+        }
+
+        #local-video {
+            position: absolute;
+            bottom: 120px; /* Above controls */
+            right: 20px;
+            width: 150px;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            transform: scaleX(-1); /* Mirror local view */
+        }
+
+        .call-info {
+            margin-bottom: 20px;
+        }
+
+        .call-info h2 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .call-info p {
+            font-size: 1.2rem;
+            animation: pulseHeader 2s infinite;
+        }
+
+        .call-controls {
+            position: absolute;
+            bottom: 30px;
+            display: flex;
+            gap: 25px;
+            align-items: center;
+        }
+
+        .call-control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        .call-control-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .call-control-btn.end-call { background-color: #e74c3c; }
+        .call-control-btn.end-call:hover { background-color: #c0392b; }
+        .call-control-btn.accept-call { background-color: #2ecc71; }
+        .call-control-btn.accept-call:hover { background-color: #27ae60; }
+        .call-control-btn.active { background-color: #d6336c; }
+
 
     </style>
 </head>
@@ -950,10 +1022,24 @@
         </div>
     </div>
 
-    <!-- Popover for Message Actions -->
-    <div id="message-actions-popover" class="hidden">
-        <button class="popover-action" id="action-reply">Reply</button>
-        <button class="popover-action" id="action-delete">Delete for me</button>
+    <!-- Call Modal -->
+    <div id="call-modal" class="call-modal-overlay hidden">
+        <div class="call-container">
+            <video id="remote-video" autoplay playsinline></video>
+            <video id="local-video" autoplay playsinline muted></video>
+
+            <div id="call-status-info" class="call-info">
+                <h2 id="call-with-user"></h2>
+                <p id="call-status-text"></p>
+            </div>
+
+            <div id="call-controls" class="call-controls">
+                <button id="toggle-mic-btn" class="call-control-btn" title="Mute/Unmute Mic">🎤</button>
+                <button id="toggle-video-btn" class="call-control-btn" title="Toggle Video">📹</button>
+                <button id="end-call-btn" class="call-control-btn end-call" title="End Call">📞</button>
+                <button id="accept-call-btn" class="call-control-btn accept-call hidden" title="Accept Call">📞</button>
+            </div>
+        </div>
     </div>
 
     <!-- Main container for the two chat boxes -->
@@ -962,8 +1048,16 @@
         <!-- Raushan's Chat Box -->
         <div class="chat-box" id="raushan-chat">
             <div class="chat-header">
-                <span>❤️ Raushan_143 ❤️</span>
+                <div class="user-info">
+                    <span>❤️ Raushan_143 ❤️</span>
+                    <div class="status-indicator" id="nisha-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Offline</span>
+                    </div>
+                </div>
                 <div class="header-icons">
+                    <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹</button>
+                    <button class="call-button" data-user="raushan" data-call-type="audio" title="Audio Call">📞</button>
                     <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
                     <button class="clear-history-button" title="Clear History">🗑️</button>
                     <button class="switch-user-button" title="Switch User">↩️</button>
@@ -976,10 +1070,6 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="raushan-form">
-                <div class="reply-preview hidden" id="raushan-reply-preview">
-                    <button type="button" class="cancel-reply-btn" data-user="raushan">&times;</button>
-                    <div class="reply-context-text"></div>
-                </div>
                 <input type="file" id="raushan-file-input" class="hidden" accept="image/*,video/*">
                 <button type="button" class="attach-button" data-user="raushan" title="Attach File">📎</button>
                 <button type="button" class="camera-button" data-user="raushan" title="Use Camera">📸</button>
@@ -997,8 +1087,16 @@
         <!-- Nisha's Chat Box -->
         <div class="chat-box" id="nisha-chat">
             <div class="chat-header">
-                <span>💖 Nisha_143 💖</span>
+                <div class="user-info">
+                    <span>💖 Nisha_143 💖</span>
+                    <div class="status-indicator" id="raushan-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Offline</span>
+                    </div>
+                </div>
                 <div class="header-icons">
+                    <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹</button>
+                    <button class="call-button" data-user="nisha" data-call-type="audio" title="Audio Call">📞</button>
                     <button class="refresh-chat-button" title="Refresh Chat">🔄</button>
                     <button class="clear-history-button" title="Clear History">🗑️</button>
                     <button class="switch-user-button" title="Switch User">↩️</button>
@@ -1011,10 +1109,6 @@
                 <span></span><span></span><span></span>
             </div>
             <form class="chat-input-area" id="nisha-form">
-                <div class="reply-preview hidden" id="nisha-reply-preview">
-                    <button type="button" class="cancel-reply-btn" data-user="nisha">&times;</button>
-                    <div class="reply-context-text"></div>
-                </div>
                 <input type="file" id="nisha-file-input" class="hidden" accept="image/*,video/*">
                 <button type="button" class="attach-button" data-user="nisha" title="Attach File">📎</button>
                 <button type="button" class="camera-button" data-user="nisha" title="Use Camera">📸</button>
@@ -1112,17 +1206,20 @@
             const sendAttachmentBtn = document.getElementById('send-attachment-btn');
             const reattachFileBtn = document.getElementById('reattach-file-btn');
 
-            // New elements for message actions
-            const messageActionsPopover = document.getElementById('message-actions-popover');
-            const actionReplyBtn = document.getElementById('action-reply');
-            const actionDeleteBtn = document.getElementById('action-delete');
-
-            // New elements for reply preview
-            const replyPreviews = document.querySelectorAll('.reply-preview');
-
             // New element for notification sound
             const notificationSound = document.getElementById('notification-sound');
 
+            // New elements for WebRTC calls
+            const callModal = document.getElementById('call-modal');
+            const callButtons = document.querySelectorAll('.call-button');
+            const localVideo = document.getElementById('local-video');
+            const remoteVideo = document.getElementById('remote-video');
+            const callWithUserEl = document.getElementById('call-with-user');
+            const callStatusTextEl = document.getElementById('call-status-text');
+            const acceptCallBtn = document.getElementById('accept-call-btn');
+            const endCallBtn = document.getElementById('end-call-btn');
+            const toggleMicBtn = document.getElementById('toggle-mic-btn');
+            const toggleVideoBtn = document.getElementById('toggle-video-btn');
             let activeUser = null;
             const PASSWORDS = {
                 raushan: "18051104143",
@@ -1134,11 +1231,19 @@
             let nishaTypingTimer;
 
             let socket;
-            let currentMessageForAction = null; // Store data of the message being acted upon
-            let replyInfo = { raushan: null, nisha: null }; // Store reply context for each user
             let unreadCountInterval;
             const messageElements = new Map(); // To map message ID to its DOM element
 
+            // WebRTC state variables
+            let peerConnection;
+            let localStream;
+            let isCallInProgress = false;
+            let callOfferData = null;
+            const iceServers = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' } // Public STUN server
+                ]
+            };
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
                 const day = String(date.getDate()).padStart(2, '0');
@@ -1161,6 +1266,11 @@
 
                 socket.onopen = () => {
                     console.log('WebSocket connection established');
+                    // If a user is already logged in (e.g., on a reconnect), re-register them.
+                    // This is the key fix for the online/offline status.
+                    if (activeUser) {
+                        socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
+                    }
                 };
 
                 socket.onmessage = (event) => {
@@ -1169,34 +1279,20 @@
                     switch (eventData.type) {
                         case 'new_message':
                             const message = eventData.payload;
-                            renderMessage(message);
+                            // Prevent re-rendering of a message that already exists in the DOM.
+                            if (!messageElements.has(message.id)) {
+                                renderMessage(message);
 
-                            // Play sound if the active user is the recipient of the message
-                            if (activeUser && message.sender !== activeUser) {
-                                notificationSound.play().catch(e => console.error("Error playing sound:", e));
-                            }
+                                // Play sound if the active user is the recipient of the message
+                                if (activeUser && message.sender !== activeUser) {
+                                    notificationSound.play().catch(e => console.error("Error playing sound:", e));
+                                }
 
-                            // If the current active user is the recipient, mark message as seen immediately
-                            const recipient = message.sender === 'raushan' ? 'nisha' : 'raushan';
-                            if (activeUser === recipient) {
-                                // Use a small timeout to ensure the message is rendered before marking it seen,
-                                // although the backend handles the logic regardless of UI state.
-                                setTimeout(() => {
-                                    fetch('/api/messages/mark-as-seen', {
-                                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser })
-                                    });
-                                }, 100);
-                            }
-                            break;
-                        case 'message_deleted':
-                            const { messageId, deletedFor } = eventData.payload;
-                            const messageTupleToDelete = messageElements.get(messageId);
-                            if (messageTupleToDelete) {
-                                const messageEl = deletedFor === 'raushan' ? messageTupleToDelete.raushan : messageTupleToDelete.nisha;
-                                if (messageEl) {
-                                    // Instead of removing, show it as deleted
-                                    messageEl.classList.add('deleted');
-                                    messageEl.innerHTML = `<span class="message-content">This message was deleted.</span>`;
+                                // If the current active user is the recipient, mark message as seen immediately
+                                if (activeUser === message.recipient) {
+                                    setTimeout(() => {
+                                        fetch('/api/messages/mark-as-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser }) });
+                                    }, 100);
                                 }
                             }
                             break;
@@ -1212,33 +1308,38 @@
                         case 'chat_cleared':
                             raushanMessages.innerHTML = '';
                             nishaMessages.innerHTML = '';
+                            messageElements.clear();
                             console.log('Chat history cleared on client.');
                             break;
                         case 'messages_seen':
                             eventData.payload.forEach(seenMessage => {
                                 const messageTuple = messageElements.get(seenMessage.id);
                                 if (messageTuple) {
-                                    // The element to update is the one in the SENDER's window
+                                    // The UI element to update is the one in the SENDER's chat window.
+                                    // For example, if Nisha saw a message from Raushan, we update Raushan's message bubble.
                                     const messageToUpdate = seenMessage.sender === 'raushan'
-                                        ? messageTuple.raushan // Raushan sent it, update his window's bubble
-                                        : messageTuple.nisha;   // Nisha sent it, update her window's bubble
+                                        ? messageTuple.raushan
+                                        : messageTuple.nisha;
                                     
                                     const statusEl = messageToUpdate.statusElement;
-                                    // Check if it's not already marked as seen to avoid adding multiple timestamps
                                     if (statusEl && !statusEl.classList.contains('seen')) {
                                         statusEl.innerHTML = '✓✓';
                                         statusEl.classList.add('seen');
-
-                                        // Add the "Seen at" timestamp info
-                                        const seenInfoDiv = document.createElement('div');
-                                        seenInfoDiv.className = 'message-seen-info';
-                                        const seenDateSpan = document.createElement('span');
-                                        seenDateSpan.textContent = formatSeenDate(seenMessage.seen_at);
-                                        const seenTimeSpan = document.createElement('span');
-                                        seenTimeSpan.textContent = formatSeenTime(seenMessage.seen_at);
-                                        seenInfoDiv.appendChild(seenDateSpan);
-                                        seenInfoDiv.appendChild(seenTimeSpan);
-                                        messageToUpdate.appendChild(seenInfoDiv);
+ 
+                                        let seenInfoDiv = messageToUpdate.querySelector('.message-seen-info');
+                                        if (!seenInfoDiv) {
+                                            seenInfoDiv = document.createElement('div');
+                                            seenInfoDiv.className = 'message-seen-info';
+                                            const seenDateSpan = document.createElement('span');
+                                            seenDateSpan.className = 'seen-date';
+                                            seenInfoDiv.appendChild(seenDateSpan);
+                                            const seenTimeSpan = document.createElement('span'); // Create the time span
+                                            seenTimeSpan.className = 'seen-time'; // Assign its class
+                                            seenInfoDiv.appendChild(seenTimeSpan);
+                                            messageToUpdate.appendChild(seenInfoDiv);
+                                        }
+                                        seenInfoDiv.querySelector('.seen-date').textContent = formatSeenDate(seenMessage.seen_at);
+                                        seenInfoDiv.querySelector('.seen-time').textContent = formatSeenTime(seenMessage.seen_at);
                                     }
                                 }
                             });
@@ -1246,12 +1347,53 @@
                         case 'unread_count_update':
                             updateUnreadCounts();
                             break;
+                        case 'user_status':
+                            const { user, status } = eventData.payload;
+                            // Only update the status indicator inside the chat header
+                            const statusIndicator = document.getElementById(`${user}-status`);
+
+                            if (statusIndicator) {
+                                const statusText = statusIndicator.querySelector('.status-text');
+                                if (status === 'online') {
+                                    statusIndicator.classList.add('online');
+                                    statusText.textContent = 'Online';
+                                } else {
+                                    statusIndicator.classList.remove('online');
+                                    statusText.textContent = 'Offline';
+                                }
+                            }
+                            break;
+                        // --- WebRTC Signaling Cases ---
+                        case 'call-offer':
+                            handleIncomingCall(eventData.payload);
+                            break;
+                        case 'call-answer':
+                            handleCallAnswer(eventData.payload);
+                            break;
+                        case 'ice-candidate':
+                            handleNewICECandidate(eventData.payload);
+                            break;
+                        case 'call-end':
+                            endCall(false); // Don't send another end signal
+                            break;
+                        case 'call-reject':
+                            if (isCallInProgress) {
+                                alert(`${eventData.payload.from} rejected the call.`);
+                                endCall(false);
+                            }
+                            break;
+                        case 'user-busy':
+                            if (isCallInProgress) {
+                                alert(`${eventData.payload.recipient} is already in another call.`);
+                                endCall(false);
+                            }
+                            break;
                     }
                 };
 
                 socket.onclose = () => {
                     console.log('WebSocket connection closed. Attempting to reconnect...');
-                    // Simple reconnect logic
+                    // Simple reconnect logic, will re-register on 'open' if a user is active
                     setTimeout(setupWebSocket, 3000);
                 };
 
@@ -1264,31 +1406,12 @@
 
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
-                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt, reply_to } = messageData;
+                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
                     const messageDiv = document.createElement('div');
                     messageDiv.classList.add('message');
-                    messageDiv.dataset.messageId = id; // Store ID for actions
-
-                    // Render reply context if it exists
-                    if (reply_to && reply_to.text) {
-                        const replyContextDiv = document.createElement('div');
-                        replyContextDiv.className = 'reply-context';
-
-                        const senderSpan = document.createElement('div');
-                        senderSpan.className = 'reply-context-sender';
-                        senderSpan.textContent = reply_to.sender === 'raushan' ? 'Raushan_143' : 'Nisha_143';
-
-                        const textSpan = document.createElement('div');
-                        textSpan.className = 'reply-context-text';
-                        textSpan.textContent = reply_to.text.substring(0, 50) + (reply_to.text.length > 50 ? '...' : '');
-
-                        replyContextDiv.appendChild(senderSpan);
-                        replyContextDiv.appendChild(textSpan);
-                        messageDiv.appendChild(replyContextDiv);
-                    }
 
                     if (msgContent.imageUrl) {
                         const imageEl = document.createElement('img');
@@ -1310,6 +1433,7 @@
                         videoEl.controls = true;
                         messageDiv.appendChild(videoEl);
                     }
+
 
                     if (msgContent.audioUrl) {
                         // Create a hidden audio element to control playback
@@ -1526,16 +1650,11 @@
             // Event listener for Raushan's form
             raushanForm.addEventListener('submit', async (e) => {
                 e.preventDefault(); // Prevent page reload
-                const text = raushanInput.value;
-                if (!text.trim()) return;
-
                 const messageData = {
                     sender: 'raushan',
-                    content: { text: text },
+                    content: { text: raushanInput.value },
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    reply_to: replyInfo.raushan // Add reply info if it exists
                 };
-
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1543,35 +1662,27 @@
                 });
                 clearTimeout(raushanTypingTimer); // Stop the typing timer
                 raushanInput.value = ''; // Clear input field
-                hideReplyPreview('raushan'); // Hide reply preview after sending
             });
 
             // Event listener for Nisha's form
             nishaForm.addEventListener('submit', async (e) => {
                 e.preventDefault(); // Prevent page reload
-                const text = nishaInput.value;
-                if (!text.trim()) return;
-
                 const messageData = {
                     sender: 'nisha',
                     content: { text: nishaInput.value },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    reply_to: replyInfo.nisha // Add reply info if it exists
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
-
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(messageData)
                 });
-
                 clearTimeout(nishaTypingTimer); // Stop the typing timer
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify({ type: 'stop_typing', user: 'nisha' }));
                 }
                 nishaInput.value = ''; // Clear input field
             });
-
 
             // --- Send message on Enter key press ---
             raushanInput.addEventListener('keydown', (e) => {
@@ -1686,10 +1797,6 @@
                 const messageData = { sender: activeUserForAttachment, content, timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
                 await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
                 closeAttachmentPreview();
-            });
-
-            document.addEventListener('click', () => {
-                messageActionsPopover.classList.remove('visible');
             });
 
             // --- Camera Button Logic ---
@@ -1925,70 +2032,6 @@
                 inputArea.querySelector('button[type="submit"]').classList.remove('hidden');
             }
 
-            // --- Message Actions (Reply/Delete) ---
-            function showMessageActions(messageEl, event) {
-                event.stopPropagation();
-                const messageId = messageEl.dataset.messageId;
-                const messageTuple = messageElements.get(parseInt(messageId));
-                if (!messageTuple) return;
-
-                // Determine which user's chat window this is in
-                const chatBox = messageEl.closest('.chat-box');
-                const actingUser = chatBox.id.includes('raushan') ? 'raushan' : 'nisha';
-
-                currentMessageForAction = {
-                    id: messageId,
-                    sender: messageEl.classList.contains('sent') ? actingUser : (actingUser === 'raushan' ? 'nisha' : 'raushan'),
-                    content: messageEl.querySelector('.message-content')?.textContent || '[Attachment]',
-                    actingUser: actingUser
-                };
-
-                const rect = messageEl.getBoundingClientRect();
-                messageActionsPopover.style.top = `${rect.top + window.scrollY}px`;
-                messageActionsPopover.style.left = `${rect.left + rect.width / 2}px`;
-                messageActionsPopover.style.transform = 'translateX(-50%) translateY(-100%)';
-                messageActionsPopover.classList.add('visible');
-            }
-
-            // Add delegate event listener to chat message containers
-            [raushanMessages, nishaMessages].forEach(container => {
-                container.addEventListener('click', (e) => {
-                    const messageEl = e.target.closest('.message');
-                    if (messageEl && !messageEl.classList.contains('deleted')) {
-                        showMessageActions(messageEl, e);
-                    }
-                });
-            });
-
-            actionReplyBtn.addEventListener('click', () => {
-                if (!currentMessageForAction) return;
-                const { id, sender, content, actingUser } = currentMessageForAction;
-                
-                replyInfo[actingUser] = { id, sender, text: content };
-
-                const preview = document.getElementById(`${actingUser}-reply-preview`);
-                preview.querySelector('.reply-context-text').textContent = `Replying to ${sender}: "${content.substring(0, 30)}..."`;
-                preview.classList.remove('hidden');
-                
-                messageActionsPopover.classList.remove('visible');
-                document.getElementById(`${actingUser}-input`).focus();
-            });
-
-            document.querySelectorAll('.cancel-reply-btn').forEach(btn => {
-                btn.addEventListener('click', () => hideReplyPreview(btn.dataset.user));
-            });
-
-            function hideReplyPreview(user) {
-                replyInfo[user] = null;
-                document.getElementById(`${user}-reply-preview`).classList.add('hidden');
-            }
-
-            actionDeleteBtn.addEventListener('click', async () => {
-                if (!currentMessageForAction) return;
-                await fetch(`/api/messages/${currentMessageForAction.id}?user=${currentMessageForAction.actingUser}`, { method: 'DELETE' });
-                messageActionsPopover.classList.remove('visible');
-            });
-
             // --- Image Zoom Logic ---
             const closeZoomModal = () => {
                 imageZoomModal.classList.remove('visible');
@@ -2023,27 +2066,23 @@
                     document.getElementById('nisha-notification').classList.add('hidden');
 
                     if (activeUser === 'raushan') {
-                        // Mark messages sent by Nisha as seen
-                        await fetch('/api/messages/mark-as-seen', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ user: 'raushan' })
-                        });
                         document.getElementById('raushan-chat').classList.remove('hidden');
                         document.getElementById('nisha-chat').classList.add('hidden');
                     } else {
-                        // Mark messages sent by Raushan as seen
-                        await fetch('/api/messages/mark-as-seen', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ user: 'nisha' })
-                        });
                         document.getElementById('nisha-chat').classList.remove('hidden');
                         document.getElementById('raushan-chat').classList.add('hidden');
                     }
 
-                    await initializeApp(true); // Now fetch fresh messages which are already marked as seen
+                    // Re-establish WebSocket with the correct user context
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.close(); // Close old connection if any
+                    } 
+                    setupWebSocket(); // Create new connection, which will register the user on 'open'
+
+                    await initializeApp(true); // Fetch fresh messages
                 } else {
                     // Incorrect password
-                    errorMessage.textContent = 'Incorrect Password!';
+                    errorMessage.textContent = 'Incorrect Password!'; 
                     loginForm.classList.add('shake');
                     setTimeout(() => loginForm.classList.remove('shake'), 500);
                 }
@@ -2063,9 +2102,24 @@
                     selectionContainer.classList.remove('hidden');
                     document.body.classList.remove('chat-active'); // Revert to the original background
                     activeUser = null;
+                    // Disconnect WebSocket when logging out to unregister the user on the server
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.close();
+                    }
+
                     updateUnreadCounts(); // Check counts immediately
                     unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Restart polling
                 });
+            });
+
+            // --- Mark as Seen on Window Focus ---
+            window.addEventListener('focus', () => {
+                // If a user is logged in and the window gets focus, mark messages as seen.
+                if (activeUser) {
+                    fetch('/api/messages/mark-as-seen', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser })
+                    });
+                }
             });
 
             // --- Clear History Logic ---
@@ -2125,25 +2179,21 @@
             async function initializeApp(isLogin = false) {
                 try {
                     const response = await fetch('/api/messages');
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); 
                     const messages = await response.json();
                     
+                    raushanMessages.innerHTML = ''; // Clear existing messages
+                    nishaMessages.innerHTML = '';   // Also clear the other chat window
                     messageElements.clear();
-                    raushanMessages.innerHTML = '';
-                    nishaMessages.innerHTML = '';
                     messages.forEach(msg => renderMessage(msg));
-                    
-                    // Connect to WebSocket on first load or login
-                    if (isLogin && (!socket || socket.readyState === WebSocket.CLOSED)) {
-                        socket = setupWebSocket();
-                    }
                 } catch (error) {
                     console.error("Failed to fetch initial messages:", error);
                 }
             }
             
             // Initial setup when page loads
-            setupWebSocket(); // Connect WebSocket immediately on page load
+            initializeApp(); // Fetch initial messages
+            setupWebSocket(); // Establish a baseline WebSocket connection
             updateUnreadCounts();
             unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Poll every 5 seconds
 

@@ -20,20 +20,82 @@ app.use(express.static(path.join(__dirname, 'public')));
 // WebSocket server setup
 const wss = new WebSocketServer({ server });
 
+// Map to store clients and their associated user
+const clients = new Map();
+
 wss.on('connection', (ws) => {
     console.log('Client connected');
 
     ws.on('message', (rawMessage) => {
-        const message = JSON.parse(rawMessage.toString());
+        const data = JSON.parse(rawMessage.toString());
+
+        // Handle user registration on login
+        if (data.type === 'register') {
+            const user = data.payload.user;
+            ws.user = user; // Associate user with this WebSocket connection
+            clients.set(user, ws);
+            console.log(`User '${user}' registered`);
+
+            // Notify all other clients that this user is now online
+            wss.clients.forEach(client => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'user_status', payload: { user, status: 'online' } }));
+                }
+            });
+
+            // Inform the newly connected user about the status of the other user
+            const otherUser = user === 'raushan' ? 'nisha' : 'raushan';
+            const otherUserSocket = clients.get(otherUser);
+            const otherUserStatus = otherUserSocket && otherUserSocket.readyState === WebSocket.OPEN ? 'online' : 'offline';
+            ws.send(JSON.stringify({ type: 'user_status', payload: { user: otherUser, status: otherUserStatus } }));
+            // Also send self-status to correctly initialize UI
+            ws.send(JSON.stringify({ type: 'user_status', payload: { user: user, status: 'online' } }));
+
+            return;
+        }
+
+        // --- WebRTC Signaling and General Message Forwarding ---
+        const recipientUser = data.payload?.to;
+
+        // Handle messages that need to be relayed to a specific user
+        // This includes all WebRTC signaling messages.
+        if (recipientUser && (data.type.startsWith('call-') || data.type === 'ice-candidate' || data.type === 'user-busy')) {
+                const recipientWs = clients.get(recipientUser);
+                if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+                    // Forward the message to the specific recipient
+                    recipientWs.send(JSON.stringify(data));
+                } else {
+                    console.log(`Call recipient '${recipientUser}' not found or not connected.`);
+                }
+            return; // Stop processing after relaying the targeted message
+        }
+
+        // For all other messages (chat, typing, seen status, etc.), broadcast to all clients.
+        // The client-side will decide whether to display the information.
+        // This is simpler and more robust for general events.
         wss.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(message));
-            }
+            // Broadcast to all clients. The client-side logic will handle not re-rendering for the sender.
+            // This ensures events like 'messages_seen' and 'chat_cleared' reach everyone.
+            if (client.readyState === WebSocket.OPEN) {
+                 client.send(JSON.stringify(data));
+             }
         });
     });
 
     ws.on('close', () => {
         console.log('Client disconnected');
+        // Remove user from the clients map on disconnect
+        if (ws.user) {
+            clients.delete(ws.user);
+            console.log(`User '${ws.user}' unregistered`);
+
+            // Notify all other clients that this user is now offline
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'user_status', payload: { user: ws.user, status: 'offline' } }));
+                }
+            });
+        }
     });
 
     ws.on('error', (error) => {

@@ -945,11 +945,31 @@
         }
 
         .call-header {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
-            padding: 20px;
-            background: rgba(0,0,0,0.2);
-            flex-shrink: 0;
-            box-sizing: border-box;
+            padding: 30px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.4), transparent);
+            z-index: 5;
+            text-align: center;
+        }
+
+
+        .call-header.hidden-on-audio-call {
+            /* This class will be used to hide the header during outgoing/incoming audio calls */
+            display: none;
+        }
+
+        .call-modal-overlay.video-outgoing .call-header {
+            display: none; /* Hide header only when video call is ringing */
+        }
+
+
+        .call-header #call-timer {
+            font-size: 1rem;
+            font-weight: 300;
+            margin-top: 5px;
         }
 
         .call-container {
@@ -957,37 +977,94 @@
             width: 100%;
             height: 100%;
             display: flex;
-            flex-direction: column;
+            flex-direction: column; /* This will be overridden for video */
             justify-content: center; /* Center the main content */
             align-items: center;
         }
+        .call-container.audio-active-view {
+            justify-content: space-around; /* Better spacing for audio call view */
+        }
+
+        .call-avatar {
+            width: 150px;
+            height: 150px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 5rem;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 0 10px rgba(0,0,0,0.3);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Styles for the large avatar in an active audio call */
+        .call-container.audio-active-view #call-avatar {
+            width: 180px;
+            height: 180px;
+            font-size: 6rem;
+            border-width: 4px;
+            border-color: #d6336c;
+            box-shadow: 0 0 30px rgba(214, 51, 108, 0.5);
+            animation: pulseCallIcon 2s infinite ease-in-out;
+        }
+
+
+
+        .audio-call-visualizer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 8rem;
+            color: #d6336c;
+            animation: pulseCallIcon 2s infinite ease-in-out;
+        }
+
+        @keyframes pulseCallIcon {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
 
         #remote-video {
-            flex-grow: 1; /* Allow video to take up available space */
-            width: 100%;
-            max-height: 75vh; /* Limit max height to leave room for controls */
-            object-fit: contain; /* Show the whole video without cropping */
+            width: 95vw; /* Use most of the viewport width */
+            max-width: 800px; /* But not excessively large on desktop */
+            height: auto;
+            max-height: 80vh; /* Limit height to leave space for controls */
+            object-fit: contain; /* Ensure the whole video is visible without cropping */
             border-radius: 15px;
-            transform: scaleX(1); /* Explicitly prevent any mirroring/flipping */
-            border: 3px solid #d6336c; /* Added a proper border */
-            background-color: #222; /* Dark background for audio calls */
-            margin: 15px; /* Add some margin */
+            border: 4px solid #d6336c; /* The requested appropriate border */
+            box-shadow: 0 0 40px rgba(214, 51, 108, 0.5); /* Add a glow effect */
+            background-color: #111; /* Dark background for letterboxing/loading */
+            z-index: 2; /* Ensure it's above the background but below controls */
+            transform: scaleX(-1); /* Flip horizontally for a mirror effect */
         }
 
         #local-video {
-            /* Hide self-view as requested */
+            /* Hide self-view as requested for a cleaner look */
             display: none !important;
         }
 
         .call-info {
             position: static;
             flex-shrink: 0; /* Prevent it from shrinking */
-            background: none;
+            background: none; /* Reset background */
             padding: 0;
+            text-align: center;
         }
 
         .call-info h2 {
-            font-size: 1.5rem;
+            font-size: 1.8rem; /* Larger font for name */
+            font-weight: 600;
+        }
+        .call-container.audio-active-view .call-info h2,
+        .call-container.audio-active-view .call-info p {
+            display: none; /* Hide the h2 and p inside the centered avatar container */
         }
 
         .call-info p {
@@ -996,13 +1073,15 @@
         }
 
         .call-controls {
-            position: static;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
             display: flex;
-            gap: 20px;
-            flex-shrink: 0; /* Prevent it from shrinking */
-            padding: 30px 0;
-            justify-content: center; /* Center the controls */
-            align-items: center;
+            justify-content: center;
+            padding: 40px 30px;
+            background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+            z-index: 5;
         }
 
         .call-control-btn {
@@ -1037,6 +1116,7 @@
         .active-call-controls {
             display: flex;
             gap: 20px;
+            justify-content: center;
             align-items: center;
         }
 
@@ -1112,14 +1192,23 @@
     <div id="call-modal" class="call-modal-overlay hidden">
         <div class="call-header">
             <div id="call-status-info" class="call-info">
-                <h2 id="call-with-user"></h2>
-                <p id="call-status-text"></p>
+                <h2 id="call-with-user-header"></h2>
+                <p id="call-timer" class="hidden"></p>
+                <p id="call-status-text-header"></p>
             </div>
         </div>
         <div class="call-container">
+            <div id="audio-call-info-container" class="call-info hidden">
+                <div id="call-avatar" class="call-avatar"></div>
+                <h2 id="call-with-user-main"></h2>
+                <p id="call-status-text-main"></p>
+            </div>
             <video id="remote-video" autoplay playsinline></video>
             <video id="local-video" autoplay playsinline muted></video>
 
+            <div id="audio-call-visualizer" class="audio-call-visualizer hidden">
+                📞
+            </div>
             <div id="call-controls" class="call-controls">
                 <div id="active-call-actions" class="active-call-controls hidden">
                     <button id="toggle-mic-btn" class="call-control-btn" title="Mute/Unmute Mic">🎤</button>
@@ -1312,9 +1401,14 @@
             const callButtons = document.querySelectorAll('.call-button');
             const localVideo = document.getElementById('local-video');
             const remoteVideo = document.getElementById('remote-video');
-            const callWithUserEl = document.getElementById('call-with-user');
-            const callStatusTextEl = document.getElementById('call-status-text');
+            const callWithUserHeaderEl = document.getElementById('call-with-user-header');
+            const callStatusTextHeaderEl = document.getElementById('call-status-text-header');
+            const callWithUserMainEl = document.getElementById('call-with-user-main');
+            const callStatusTextMainEl = document.getElementById('call-status-text-main');
+            const callAvatarEl = document.getElementById('call-avatar');
+            const audioCallInfoContainer = document.getElementById('audio-call-info-container');
             const acceptCallBtn = document.getElementById('accept-call-btn');
+            const callTimerEl = document.getElementById('call-timer');
             const endCallBtn = document.getElementById('end-call-btn');
             const toggleMicBtn = document.getElementById('toggle-mic-btn');
             const toggleVideoBtn = document.getElementById('toggle-video-btn');
@@ -1339,8 +1433,11 @@
             let localStream;
             let isCallInProgress = false;
             let callOfferData = null;
+            let callRecipient = null; // New variable to track the outgoing call recipient
+            let callTimerInterval = null;
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
+                // It's recommended to use your own TURN server for production applications
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' } // Public STUN server
                 ]
@@ -1367,6 +1464,7 @@
                     return;
                 }
 
+                callRecipient = recipient; // Store the recipient for the outgoing call
                 currentCallFacingMode = 'user'; // Reset to front camera for new calls
                 try {
                     const constraints = {
@@ -1449,9 +1547,10 @@
             const handleCallAnswer = async (data) => {
                 if (peerConnection) {
                     // The user who initiated the call receives the answer
+                    const callType = callOfferData?.callType || 'video'; // Get call type from original offer
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                    // We need to know the call type, which is stored in the original offer data
-                    const callType = callOfferData ? callOfferData.callType : 'video'; // Default to video if something is odd
+                    
+                    // This is the key fix: Update the UI to the 'active' state for the sender
                     showCallModal('active', data.from, callType);
                 }
             };
@@ -1500,9 +1599,13 @@
                 if (!isCallInProgress) return;
 
                 if (isInitiator && socket && socket.readyState === WebSocket.OPEN) {
-                    const recipient = callOfferData?.from || (peerConnection ? (callWithUserEl.textContent.toLowerCase().includes('raushan') ? 'raushan' : 'nisha') : null);
+                    // Determine recipient: from incoming offer, or from our stored outgoing recipient
+                    const recipient = callOfferData?.from || callRecipient;
                     if (recipient) {
                         socket.send(JSON.stringify({ type: 'call-end', payload: { to: recipient } }));
+                    } else {
+                        // Fallback if something went wrong, broadcast to end any stray call
+                        socket.send(JSON.stringify({ type: 'call-end', payload: { to: activeUser === 'raushan' ? 'nisha' : 'raushan' } }));
                     }
                 }
 
@@ -1520,42 +1623,139 @@
                 callModal.classList.add('hidden');
                 isCallInProgress = false;
                 callOfferData = null;
+                callRecipient = null; // Clear the recipient on call end
+            };
+            const startCallTimer = () => {
+                let seconds = 0;
+                callTimerEl.textContent = '0:00';
+                callTimerInterval = setInterval(() => {
+                    seconds++;
+                    callTimerEl.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+                }, 1000);
             };
 
             const showCallModal = (state, user, callType) => {
                 callModal.classList.remove('hidden');
+                const callContainer = callModal.querySelector('.call-container');
+                const callHeader = callModal.querySelector('.call-header');
                 const otherUser = user.charAt(0).toUpperCase() + user.slice(1);
-                callWithUserEl.textContent = `Call with ${otherUser}`;
 
-                const activeCallActions = document.getElementById('active-call-actions');
-                const incomingCallActions = document.getElementById('incoming-call-actions');
-                const endCallBtnDecline = document.getElementById('end-call-btn-decline');
+                // Get the DOM elements for the main call info (avatar view)
+                const mainCallInfoContainer = document.getElementById('audio-call-info-container');
+                const mainCallAvatar = document.getElementById('call-avatar');
+                const mainCallWithUser = document.getElementById('call-with-user-main');
+                const mainCallStatus = document.getElementById('call-status-text-main');
+                const activeCallActions = document.getElementById('active-call-actions'); // Contains all active call buttons
+                const incomingCallActions = document.getElementById('incoming-call-actions'); // Contains accept/decline
+                const audioVisualizer = document.getElementById('audio-call-visualizer'); // The phone icon
+                const endCallBtnDecline = document.getElementById('end-call-btn-decline'); // The decline button for incoming calls
 
-                activeCallActions.classList.toggle('hidden', state !== 'active');
                 incomingCallActions.classList.toggle('hidden', state !== 'incoming');
-                
-                // The end call button is now inside the active-call-actions div.
-                // The decline button is separate for incoming calls.
                 endCallBtnDecline.onclick = () => endCall(true);
+
+                // Stop any existing timer
+                clearInterval(callTimerInterval);
+                callStatusTextHeaderEl.classList.remove('hidden');
+                callTimerEl.classList.add('hidden');
+
+                const isVideoCall = callType === 'video';
+
+                // Add a class to the overlay for video-specific styling
+                callModal.classList.toggle('audio-active', !isVideoCall && state === 'active');
+                callModal.classList.toggle('video-outgoing', isVideoCall && state === 'outgoing');
+                callModal.classList.toggle('video-active', isVideoCall && (state === 'active' || state === 'outgoing'));
+
+                // --- UI State Management ---
+                callHeader.classList.toggle('hidden-on-audio-call', !isVideoCall && state === 'incoming');
+                callContainer.classList.toggle('audio-active-view', !isVideoCall && state === 'active');
+                // Hide the avatar container ONLY for active video calls, not incoming/outgoing ones.
+                audioVisualizer.classList.add('hidden'); // Hide phone icon by default
+
+                if (isVideoCall) {
+                    mainCallInfoContainer.classList.toggle('hidden', state === 'active');
+                    remoteVideo.classList.toggle('hidden', state !== 'active');
+                } else {
+                    mainCallInfoContainer.classList.remove('hidden'); // Always show avatar container for audio calls
+                    remoteVideo.classList.add('hidden'); // Always hide video for audio calls
+                }
                 
                 if (state === 'incoming') {
-                    callWithUserEl.textContent = `${otherUser}`;
-                    callStatusTextEl.textContent = `Incoming ${callType} call...`;
-                    localVideo.style.display = 'none'; // Hide local video on incoming call screen
-                    remoteVideo.style.display = 'none'; // Hide remote video on incoming call screen
+                    // Incoming call state: Show avatar, "Incoming call...", and accept/decline buttons.
+                    callAvatarEl.textContent = otherUser.charAt(0);
+                    callWithUserHeaderEl.textContent = ''; // Clear header text
+                    callWithUserMainEl.textContent = `${otherUser}`;
+                    callStatusTextMainEl.textContent = `Incoming ${callType} call...`;
+                    activeCallActions.classList.add('hidden');
+                    incomingCallActions.classList.remove('hidden');
                 } else if (state === 'outgoing') {
-                    callStatusTextEl.textContent = `Calling...`;
-                } else { // active
-                    callStatusTextEl.textContent = 'Connected';
-                }
+                    // Outgoing call state:
+                    incomingCallActions.classList.add('hidden');
+                    activeCallActions.classList.remove('hidden');
 
-                // Show/hide video elements based on call type
-                const isVideoCall = callType === 'video';
-                if (state === 'active') {
+                    if (isVideoCall) {
+                        // For outgoing video, the view is mostly black with controls.
+                        callWithUserHeaderEl.textContent = '';
+                        callStatusTextHeaderEl.textContent = ''; // Header is not used for this view
+                    } else {
+                        // For outgoing audio, show the "active call" UI immediately for the sender.
+                        callWithUserHeaderEl.textContent = ''; // Remove username from header
+                        callStatusTextHeaderEl.textContent = ''; // Remove redundant "Calling..." from header
+                    }
+                    // For both audio and video outgoing calls, show the avatar view
+                    if (state === 'outgoing') {
+                        mainCallInfoContainer.classList.remove('hidden');
+                        mainCallAvatar.textContent = otherUser.charAt(0);
+                        mainCallWithUser.textContent = otherUser;
+                        
+                        // Check if the other user is online to show "Ringing..." vs "Calling..."
+                        const otherUserStatusIndicator = document.getElementById(`${user}-status`);
+                        if (otherUserStatusIndicator && otherUserStatusIndicator.classList.contains('online')) {
+                            mainCallStatus.textContent = `Ringing...`;
+                        } else {
+                            mainCallStatus.textContent = `Calling...`;
+                        }
+                    }
+
+                    // Set visibility for all active call buttons based on call type
                     flipCameraCallBtn.style.display = isVideoCall ? 'flex' : 'none';
-                    remoteVideo.style.display = 'block'; // Always show remote video container
+                    toggleVideoBtn.style.display = 'none'; // Hide this button as requested
+                    toggleMicBtn.style.display = 'flex';
+                    toggleSpeakerBtn.style.display = 'flex';
+                    endCallBtn.style.display = 'flex';
+                } else { // active
+                    incomingCallActions.classList.add('hidden');
+                    activeCallActions.classList.remove('hidden');
+
+                    if (!isVideoCall) {
+                        // Active Audio Call - Show big avatar in center, info in header
+                        mainCallAvatar.textContent = otherUser.charAt(0);
+                        audioVisualizer.classList.add('hidden');
+                    } else {
+                        // Active Video Call - Set header text as requested
+                        callWithUserHeaderEl.textContent = `Video Call With ${otherUser}`;
+                        // Active Video Call - Show connected status
+                        callStatusTextHeaderEl.textContent = ''; // Remove "Connected" text as requested
+                        audioVisualizer.classList.add('hidden'); // Ensure pulsing icon is hidden for video calls
+                    }
+
+                    // For both active audio and video calls, start the timer.
+                    // This block now handles the final UI state for an active call for BOTH users.
+                    callWithUserHeaderEl.textContent = isVideoCall ? `Video Call With ${otherUser}` : `Call with ${otherUser}`;
+                    callStatusTextHeaderEl.textContent = ''; // Clear "Ringing..." or "Connected"
+                    mainCallWithUser.textContent = ''; // Hide the centered name
+                    mainCallStatus.textContent = ''; // Hide the centered status text
+                    
+                    // Show the timer
+                    callTimerEl.classList.remove('hidden'); // Show the timer element
+                    startCallTimer();
+
+                    // Set visibility for all active call buttons
+                    flipCameraCallBtn.classList.toggle('hidden', !isVideoCall);
+                    toggleVideoBtn.style.display = 'none'; // Hide this button as requested
+                    toggleMicBtn.style.display = 'flex';
+                    toggleSpeakerBtn.style.display = 'flex';
+                    endCallBtn.style.display = 'flex';
                 }
-                toggleVideoBtn.style.display = isVideoCall ? 'flex' : 'none';
             };
 
             // --- Event Listeners for Call Controls ---

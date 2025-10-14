@@ -1450,6 +1450,9 @@
             let callRecipient = null; // New variable to track the outgoing call recipient
             let outgoingCallType = null; // New variable to track the call type for the initiator
             let callTimerInterval = null;
+            let callStartTime = null; // To track the start time of an active call
+            let reconnectionTimer = null;
+            const RECONNECTION_TIMEOUT = 30000; // 30 seconds to reconnect
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
                 // It's recommended to use your own TURN server for production applications
@@ -1605,14 +1608,64 @@
                 };
 
                 peerConnection.oniceconnectionstatechange = () => {
-                    if (peerConnection.iceConnectionState === 'disconnected' || peerConnection.iceConnectionState === 'closed' || peerConnection.iceConnectionState === 'failed') {
-                        endCall(false);
+                    console.log(`ICE connection state changed to: ${peerConnection.iceConnectionState}`);
+                    switch (peerConnection.iceConnectionState) {
+                        case 'disconnected':
+                            // Connection lost, but might be recoverable. Start a timer.
+                            callStatusTextHeaderEl.textContent = 'Connecting...';
+                            if (!reconnectionTimer) {
+                                reconnectionTimer = setTimeout(() => {
+                                    console.log("Reconnection timeout. Ending call.");
+                                    endCall(true); // End call if not reconnected within the timeout
+                                }, RECONNECTION_TIMEOUT);
+                            }
+                            break;
+                        case 'connected':
+                        case 'completed':
+                            // Connection re-established.
+                            callStatusTextHeaderEl.textContent = ''; // Clear "Connecting..."
+                            clearTimeout(reconnectionTimer);
+                            reconnectionTimer = null;
+                            break;
+                        case 'failed':
+                        case 'closed':
+                            // Connection permanently lost.
+                            endCall(false);
+                            break;
                     }
                 };
             };
 
             const endCall = (isInitiator) => {
                 if (!isCallInProgress) return;
+
+                // If the call was active, calculate duration and post a message
+                if (callStartTime) {
+                    const callEndTime = new Date();
+                    const durationInSeconds = Math.round((callEndTime - callStartTime) / 1000);
+
+                    // Only log a message for calls longer than a second to avoid accidental clicks
+                    if (durationInSeconds > 1) {
+                        const callType = outgoingCallType || callOfferData?.callType;
+                        const recipient = callOfferData?.from || callRecipient;
+
+                        // Create a "call_ended" message and send it to the server to be saved and broadcast
+                        const messageData = {
+                            sender: activeUser,
+                            recipient: recipient,
+                            content: {
+                                type: 'call_ended',
+                                callType: callType,
+                                duration: durationInSeconds
+                            },
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                        fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
+                    }
+                }
+
+                clearTimeout(reconnectionTimer);
+                reconnectionTimer = null;
 
                 if (isInitiator && socket && socket.readyState === WebSocket.OPEN) {
                     // Determine recipient: from incoming offer, or from our stored outgoing recipient
@@ -2001,6 +2054,25 @@
                         case 'user-busy':
                             alert(`${eventData.payload.recipient} is busy.`); endCall(false);
                             break;
+                        case 'call-recipient-offline':
+                            // This is the new event from the server when the call recipient is not connected.
+                            alert(`${eventData.payload.recipient} is offline.`);
+                            // The server will create the missed call message, so the client just needs to end the call UI.
+                            endCall(false);
+                            break;
+                        case 'peer-disconnected':
+                            // This is the new event from the server when the other user's WebSocket closes.
+                            if (isCallInProgress) {
+                                console.log('Peer WebSocket disconnected. Attempting to reconnect...');
+                                callStatusTextHeaderEl.textContent = 'Connecting...';
+                                if (!reconnectionTimer) {
+                                    reconnectionTimer = setTimeout(() => {
+                                        console.log("Reconnection timeout after peer WS disconnect. Ending call.");
+                                        endCall(true);
+                                    }, RECONNECTION_TIMEOUT);
+                                }
+                            }
+                            break;
                     }
                 };
 
@@ -2137,6 +2209,37 @@
                         messageDiv.appendChild(contentSpan);
                     }
 
+                    // Handle missed call rendering
+                    if (msgContent.type === 'missed_call') {
+                        const contentSpan = document.createElement('span');
+                        contentSpan.className = 'message-content';
+                        const icon = msgContent.callType === 'video' ? '📹' : '📞';
+                        contentSpan.textContent = `${icon} Missed ${msgContent.callType} call`;
+                        contentSpan.style.fontStyle = 'italic';
+                        contentSpan.style.opacity = '0.8';
+                        messageDiv.appendChild(contentSpan);
+                    }
+
+                    // Handle call ended rendering
+                    if (msgContent.type === 'call_ended') {
+                        const formatDuration = (seconds) => {
+                            if (seconds < 60) return `${seconds}s`;
+                            const minutes = Math.floor(seconds / 60);
+                            const remainingSeconds = seconds % 60;
+                            return `${minutes}m ${remainingSeconds}s`;
+                        };
+
+                        const contentSpan = document.createElement('span');
+                        contentSpan.className = 'message-content';
+                        const icon = msgContent.callType === 'video' ? '📹' : '📞';
+                        const durationText = formatDuration(msgContent.duration);
+                        contentSpan.textContent = `${icon} ${msgContent.callType.charAt(0).toUpperCase() + msgContent.callType.slice(1)} call ended • ${durationText}`;
+                        contentSpan.style.fontStyle = 'italic';
+                        contentSpan.style.opacity = '0.8';
+                        messageDiv.appendChild(contentSpan);
+                    }
+
+
                     // Add a placeholder for the status checkmark on sent messages
                     messageDiv.statusElement = document.createElement('span');
                     messageDiv.statusElement.className = 'message-status';
@@ -2171,8 +2274,10 @@
 
                     // Add status to the sender's message
                     const { main: senderMeta, right: senderMetaRight } = createMetaElement();
-                    raushanMessage.statusElement.innerHTML = '✓'; // Sent (single check)
-                    senderMetaRight.appendChild(raushanMessage.statusElement);
+                    if (content.type !== 'missed_call') { // Don't show status for missed calls
+                        raushanMessage.statusElement.innerHTML = '✓'; // Sent (single check)
+                        senderMetaRight.appendChild(raushanMessage.statusElement);
+                    }
                     // If it's an audio message, add the duration to the meta section
                     if (raushanMessage.audioDurationElement) {
                         senderMeta.prepend(raushanMessage.audioDurationElement); // Add to the main meta div on the left
@@ -2219,8 +2324,10 @@
 
                     // Add status to the sender's message
                     const { main: senderMeta, right: senderMetaRight } = createMetaElement();
-                    nishaMessage.statusElement.innerHTML = '✓'; // Sent (single check)
-                    senderMetaRight.appendChild(nishaMessage.statusElement);
+                    if (content.type !== 'missed_call') { // Don't show status for missed calls
+                        nishaMessage.statusElement.innerHTML = '✓'; // Sent (single check)
+                        senderMetaRight.appendChild(nishaMessage.statusElement);
+                    }
                     // If it's an audio message, add the duration to the meta section
                     if (nishaMessage.audioDurationElement) {
                         senderMeta.prepend(nishaMessage.audioDurationElement); // Add to the main meta div on the left

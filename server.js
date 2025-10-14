@@ -61,46 +61,13 @@ wss.on('connection', (ws) => {
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.
         if (recipientUser && isSignalingMessage) {
-                const recipientWs = clients.get(recipientUser);
-                if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
-                    // Forward the message to the specific recipient
-                    recipientWs.send(rawMessage.toString()); // Forward the original raw message
-                } else if (data.type === 'call-offer') {
-                    // Handle missed calls if the recipient is offline
-                    console.log(`Call recipient '${recipientUser}' not found or not connected.`);
-                    const callerUser = data.payload.from;
-                    const callType = data.payload.callType; // 'video' or 'audio'
-
-                    // 1. Notify the caller that the user is offline
-                    const callerWs = clients.get(callerUser);
-                    if (callerWs && callerWs.readyState === WebSocket.OPEN) {
-                        callerWs.send(JSON.stringify({ type: 'call-recipient-offline', payload: { recipient: recipientUser } }));
-                    }
-
-                    // 2. Create and save a "missed call" message to the database
-                    const missedCallMessage = {
-                        sender: callerUser,
-                        content: { type: 'missed_call', callType: callType }, // Special content type
-                        timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    };
-
-                    pool.query(
-                        'INSERT INTO messages (sender, content, time_string) VALUES ($1, $2, $3) RETURNING *',
-                        [missedCallMessage.sender, JSON.stringify(missedCallMessage.content), missedCallMessage.timeString]
-                    ).then(result => {
-                        const newMessage = result.rows[0];
-                        newMessage.recipient = recipientUser;
-
-                        // 3. Broadcast the missed call message to all clients so it appears in chat history
-                        wss.clients.forEach((client) => {
-                            if (client.readyState === WebSocket.OPEN) {
-                                client.send(JSON.stringify({ type: 'new_message', payload: newMessage }));
-                            }
-                        });
-                    }).catch(err => {
-                        console.error('Error saving missed call message:', err);
-                    });
-                }
+            const recipientWs = clients.get(recipientUser);
+            if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
+                recipientWs.send(rawMessage.toString());
+            } else {
+                // If recipient is not found, do nothing. The caller's client will handle the timeout.
+                console.log(`Call recipient '${recipientUser}' not found or not connected. Call will not be delivered.`);
+            }
             return; // Stop processing after relaying the targeted message
         }
 
@@ -120,19 +87,24 @@ wss.on('connection', (ws) => {
         console.log('Client disconnected');
         // Remove user from the clients map on disconnect
         if (ws.user) {
-            clients.delete(ws.user);
             const disconnectedUser = ws.user;
-            console.log(`User '${disconnectedUser}' unregistered`);
+            clients.delete(disconnectedUser);
+            console.log(`User '${disconnectedUser}' connection closed.`);
 
-            // Notify all other clients that this user is now offline
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    // Send offline status update
-                    client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));
-                    // Notify the other client that the peer has disconnected, allowing the client to handle reconnection logic.
-                    client.send(JSON.stringify({ type: 'peer-disconnected', payload: { user: disconnectedUser } }));
+            // Wait for a short period before broadcasting the offline status.
+            // This gives the client a chance to reconnect without appearing offline.
+            setTimeout(() => {
+                // If the user has NOT reconnected within the timeout, then broadcast offline status.
+                if (!clients.has(disconnectedUser)) {
+                    console.log(`User '${disconnectedUser}' is offline. Broadcasting status.`);
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));
+                            client.send(JSON.stringify({ type: 'peer-disconnected', payload: { user: disconnectedUser } }));
+                        }
+                    });
                 }
-            });
+            }, 5000); // 5-second grace period for reconnection.
         }
     });
 

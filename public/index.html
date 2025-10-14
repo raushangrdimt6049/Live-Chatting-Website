@@ -1450,9 +1450,10 @@
             let callRecipient = null; // New variable to track the outgoing call recipient
             let outgoingCallType = null; // New variable to track the call type for the initiator
             let callTimerInterval = null;
+            let callAnswerTimeout = null; // Timer for unanswered calls
             let callStartTime = null; // To track the start time of an active call
             let reconnectionTimer = null;
-            const RECONNECTION_TIMEOUT = 30000; // 30 seconds to reconnect
+            const RECONNECTION_TIMEOUT = 3000; // 30 seconds to reconnect
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
                 // It's recommended to use your own TURN server for production applications
@@ -1508,6 +1509,27 @@
                             callType: callType
                         }
                     }));
+
+                    // Set a timeout for the call to be answered
+                    callAnswerTimeout = setTimeout(() => {
+                        console.log("Call not answered within 10 seconds. Ending call and logging as missed.");
+                        
+                        // 1. End the call UI for the caller and notify the recipient to stop ringing.
+                        endCall(true); 
+
+                        // 2. Create and send a "missed call" message.
+                        const missedCallMessageData = {
+                            sender: activeUser,
+                            recipient: recipient,
+                            content: {
+                                type: 'missed_call',
+                                callType: callType
+                            },
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                        fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(missedCallMessageData) });
+
+                    }, 10000); // 10-second timeout
 
                     showCallModal('outgoing', recipient, callType);
                 } catch (err) {
@@ -1565,6 +1587,10 @@
 
             const handleCallAnswer = async (data) => {
                 if (peerConnection) {
+                    // The call was answered, so clear the timeout timer.
+                    clearTimeout(callAnswerTimeout);
+                    callAnswerTimeout = null;
+
                     // The user who initiated the call receives the answer
                     const callType = outgoingCallType; // Use the stored call type for the initiator
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -1639,6 +1665,27 @@
             const endCall = (isInitiator) => {
                 if (!isCallInProgress) return;
 
+                // If the initiator hangs up before the call is answered, log it as a missed call.
+                // We can check this by seeing if the callAnswerTimeout is still active.
+                if (isInitiator && callAnswerTimeout) {
+                    console.log("Caller hung up before answer. Logging as missed call.");
+                    const callType = outgoingCallType || callOfferData?.callType;
+                    const recipient = callOfferData?.from || callRecipient;
+
+                    if (callType && recipient) {
+                        const missedCallMessageData = {
+                            sender: activeUser,
+                            recipient: recipient,
+                            content: {
+                                type: 'missed_call',
+                                callType: callType
+                            },
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                        fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(missedCallMessageData) });
+                    }
+                }
+
                 // If the call was active, calculate duration and post a message
                 if (callStartTime) {
                     const callEndTime = new Date();
@@ -1665,7 +1712,10 @@
                 }
 
                 clearTimeout(reconnectionTimer);
+                clearTimeout(callAnswerTimeout); // Also clear the answer timeout
+
                 reconnectionTimer = null;
+                callAnswerTimeout = null;
 
                 if (isInitiator && socket && socket.readyState === WebSocket.OPEN) {
                     // Determine recipient: from incoming offer, or from our stored outgoing recipient
@@ -1961,7 +2011,8 @@
                                 }
 
                                 // If the current active user is the recipient, mark message as seen immediately
-                                if (activeUser && activeUser === message.recipient) {
+                                // Only mark as seen if the user is the recipient AND the window is currently focused.
+                                if (activeUser && activeUser === message.recipient && !document.hidden) {
                                     setTimeout(() => {
                                         fetch('/api/messages/mark-as-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser }) });
                                     }, 100);

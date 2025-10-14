@@ -118,6 +118,21 @@
             flex-grow: 1; /* Allow it to take space */
         }
 
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: #888;
+            margin-top: 2px;
+        }
+        .status-dot { width: 8px; height: 8px; background-color: #888; border-radius: 50%; transition: background-color 0.3s; }
+        .status-indicator.online .status-dot { background-color: #2ecc71; }
+        .status-indicator.online .status-text { color: #2ecc71; }
+
+
+
 
         .chat-messages {
             flex-grow: 1;
@@ -1232,6 +1247,10 @@
             <div class="chat-header">
                 <div class="user-info">
                     <span>❤️ Raushan_143 ❤️</span>
+                    <div class="status-indicator" id="nisha-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Offline</span>
+                    </div>
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
@@ -1269,6 +1288,10 @@
             <div class="chat-header">
                 <div class="user-info">
                     <span>💖 Nisha_143 💖</span>
+                    <div class="status-indicator" id="raushan-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Offline</span>
+                    </div>
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
@@ -1431,7 +1454,7 @@
             let callStartTime = null; // To track the start time of an active call
             let reconnectionTimer = null;
             const RECONNECTION_TIMEOUT = 3000; // 30 seconds to reconnect
-            let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back // This was correct
+            let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
                 // It's recommended to use your own TURN server for production applications
                 iceServers: [
@@ -1807,7 +1830,10 @@
                     mainCallWithUser.textContent = ''; // The name is now in the header
 
                     // Check if the other user is online to show "Ringing..." vs "Calling..."
-                    mainCallStatus.textContent = `Ringing...`;
+                    const otherUserStatusIndicator = document.getElementById(`${user}-status`);
+                    mainCallStatus.textContent = (otherUserStatusIndicator && otherUserStatusIndicator.classList.contains('online'))
+                        ? `Ringing...`
+                        : `Calling...`;
 
                     // Set visibility for all active call buttons based on call type
                     flipCameraCallBtn.style.display = isVideoCall ? 'flex' : 'none';
@@ -2044,6 +2070,22 @@
                         case 'unread_count_update':
                             updateUnreadCounts();
                             break;
+                        case 'user_status':
+                            const { user, status } = eventData.payload;
+                            // Only update the status indicator inside the chat header
+                            const statusIndicator = document.getElementById(`${user}-status`);
+
+                            if (statusIndicator) {
+                                const statusText = statusIndicator.querySelector('.status-text');
+                                if (status === 'online') {
+                                    statusIndicator.classList.add('online');
+                                    statusText.textContent = 'Online';
+                                } else {
+                                    statusIndicator.classList.remove('online');
+                                    statusText.textContent = 'Offline';
+                                }
+                            }
+                            break;
                         // --- WebRTC Signaling Cases ---
                         case 'call-offer':
                             handleIncomingCall(eventData.payload);
@@ -2062,6 +2104,12 @@
                             break;
                         case 'user-busy':
                             alert(`${eventData.payload.recipient} is busy.`); endCall(false);
+                            break;
+                        case 'call-recipient-offline':
+                            // This is the new event from the server when the call recipient is not connected.
+                            alert(`${eventData.payload.recipient} is offline.`);
+                            // The server will create the missed call message, so the client just needs to end the call UI.
+                            endCall(false);
                             break;
                         case 'peer-disconnected':
                             // This is the new event from the server when the other user's WebSocket closes.

@@ -35,6 +35,22 @@ wss.on('connection', (ws) => {
             ws.user = user; // Associate user with this WebSocket connection
             clients.set(user, ws);
             console.log(`User '${user}' registered`);
+
+            // Notify all other clients that this user is now online
+            wss.clients.forEach(client => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'user_status', payload: { user, status: 'online' } }));
+                }
+            });
+
+            // Inform the newly connected user about the status of the other user
+            const otherUser = user === 'raushan' ? 'nisha' : 'raushan';
+            const otherUserSocket = clients.get(otherUser);
+            const otherUserStatus = otherUserSocket && otherUserSocket.readyState === WebSocket.OPEN ? 'online' : 'offline';
+            ws.send(JSON.stringify({ type: 'user_status', payload: { user: otherUser, status: otherUserStatus } }));
+            // Also send self-status to correctly initialize UI
+            ws.send(JSON.stringify({ type: 'user_status', payload: { user: user, status: 'online' } }));
+
             return;
         }
 
@@ -71,9 +87,24 @@ wss.on('connection', (ws) => {
         console.log('Client disconnected');
         // Remove user from the clients map on disconnect
         if (ws.user) {
-            const disconnectedUser = ws.user;
-            clients.delete(disconnectedUser);
-            console.log(`User '${disconnectedUser}' unregistered`);
+            const disconnectedUser = ws.user; // Get the user before deleting
+            clients.delete(disconnectedUser); // Remove the user from the active map
+            console.log(`User '${disconnectedUser}' connection closed. Starting grace period.`);
+
+            // Wait for a short period before broadcasting the offline status.
+            // This gives the client a chance to reconnect without appearing offline.
+            setTimeout(() => {
+                // If the user has NOT reconnected within the timeout, then broadcast offline status.
+                if (!clients.has(disconnectedUser)) {
+                    console.log(`Grace period ended. User '${disconnectedUser}' is offline. Broadcasting status.`);
+                    wss.clients.forEach(client => {
+                        if (client.readyState === WebSocket.OPEN) {
+                            client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));
+                            client.send(JSON.stringify({ type: 'peer-disconnected', payload: { user: disconnectedUser } }));
+                        }
+                    });
+                }
+            }, 5000); // 5-second grace period for reconnection.
         }
     });
 

@@ -1137,6 +1137,48 @@
             border: none;
             object-fit: contain; /* Fills the screen without cropping, may add letterboxing */
         }
+
+        /* --- Voice Chat Modal --- */
+        .voice-chat-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 5000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+        }
+
+        .voice-chat-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .voice-chat-icon {
+            font-size: 8rem;
+            color: #2ecc71; /* Green to indicate live connection */
+            animation: pulseCallIcon 2s infinite ease-in-out;
+        }
+
+        .voice-chat-info h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .voice-chat-controls {
+            position: absolute;
+            bottom: 50px;
+        }
     </style>
 </head>
 <body>
@@ -1202,6 +1244,19 @@
         </div>
     </div>
 
+    <!-- Voice Chat Modal -->
+    <div id="voice-chat-modal" class="voice-chat-modal-overlay hidden">
+        <div class="voice-chat-container">
+            <div class="voice-chat-icon">🎙️</div>
+            <div class="voice-chat-info">
+                <h2>Live Voice Chat</h2>
+            </div>
+        </div>
+        <div class="voice-chat-controls">
+            <button id="end-voice-chat-btn" class="call-control-btn end-call" title="End Voice Chat">📞</button>
+        </div>
+    </div>
+
     <!-- Call Modal -->
     <div id="call-modal" class="call-modal-overlay hidden">
         <div class="call-header">
@@ -1254,6 +1309,7 @@
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="voice-chat-button" data-user="raushan" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹 Video Call</button>
                         <button class="call-button" data-user="raushan" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
                         <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
@@ -1295,6 +1351,7 @@
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="voice-chat-button" data-user="nisha" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹 Video Call</button>
                         <button class="call-button" data-user="nisha" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
                         <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
@@ -1429,6 +1486,11 @@
             const toggleSpeakerBtn = document.getElementById('toggle-speaker-btn');
             const flipCameraCallBtn = document.getElementById('flip-camera-call-btn');
             let activeUser = null;
+            // Voice Chat elements
+            const voiceChatModal = document.getElementById('voice-chat-modal');
+            const voiceChatButtons = document.querySelectorAll('.voice-chat-button');
+            const endVoiceChatBtn = document.getElementById('end-voice-chat-btn');
+
             const PASSWORDS = {
                 raushan: "asdf@1234",
                 nisha: "11041805143" // Nisha's password remains unchanged
@@ -1450,6 +1512,8 @@
             let callRecipient = null; // New variable to track the outgoing call recipient
             let outgoingCallType = null; // New variable to track the call type for the initiator
             let callTimerInterval = null;
+            let voiceChatPeerConnection;
+            let voiceChatStream;
             let callAnswerTimeout = null; // Timer for unanswered calls
             let callStartTime = null; // To track the start time of an active call
             let reconnectionTimer = null;
@@ -1468,6 +1532,98 @@
                 const year = date.getFullYear();
                 return `${day}-${month}-${year}`;
             }
+
+            // --- Voice Chat Logic ---
+            const startVoiceChat = async (recipient) => {
+                if (isCallInProgress || voiceChatPeerConnection) {
+                    alert("You are already in a call or voice chat.");
+                    return;
+                }
+                try {
+                    voiceChatStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    voiceChatModal.classList.remove('hidden');
+
+                    voiceChatPeerConnection = new RTCPeerConnection(iceServers);
+                    voiceChatStream.getTracks().forEach(track => voiceChatPeerConnection.addTrack(track, voiceChatStream));
+
+                    voiceChatPeerConnection.ontrack = event => {
+                        const remoteAudio = new Audio();
+                        remoteAudio.srcObject = event.streams[0];
+                        remoteAudio.play();
+                    };
+
+                    voiceChatPeerConnection.onicecandidate = event => {
+                        if (event.candidate) {
+                            socket.send(JSON.stringify({ type: 'voice-chat-ice-candidate', payload: { to: recipient, candidate: event.candidate } }));
+                        }
+                    };
+
+                    const offer = await voiceChatPeerConnection.createOffer();
+                    await voiceChatPeerConnection.setLocalDescription(offer);
+
+                    socket.send(JSON.stringify({ type: 'voice-chat-offer', payload: { from: activeUser, to: recipient, offer: offer } }));
+                } catch (err) {
+                    console.error("Error starting voice chat:", err);
+                    alert("Could not start voice chat. Please check microphone permissions.");
+                    endVoiceChat();
+                }
+            };
+
+            const handleVoiceChatOffer = async (data) => {
+                if (isCallInProgress || voiceChatPeerConnection) return; // Already busy
+
+                try {
+                    voiceChatStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    voiceChatModal.classList.remove('hidden');
+
+                    voiceChatPeerConnection = new RTCPeerConnection(iceServers);
+                    voiceChatStream.getTracks().forEach(track => voiceChatPeerConnection.addTrack(track, voiceChatStream));
+
+                    voiceChatPeerConnection.ontrack = event => {
+                        const remoteAudio = new Audio();
+                        remoteAudio.srcObject = event.streams[0];
+                        remoteAudio.play();
+                    };
+
+                    voiceChatPeerConnection.onicecandidate = event => {
+                        if (event.candidate) {
+                            socket.send(JSON.stringify({ type: 'voice-chat-ice-candidate', payload: { to: data.from, candidate: event.candidate } }));
+                        }
+                    };
+
+                    await voiceChatPeerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await voiceChatPeerConnection.createAnswer();
+                    await voiceChatPeerConnection.setLocalDescription(answer);
+
+                    socket.send(JSON.stringify({ type: 'voice-chat-answer', payload: { from: activeUser, to: data.from, answer: answer } }));
+                } catch (err) {
+                    console.error("Error handling voice chat offer:", err);
+                    endVoiceChat();
+                }
+            };
+
+            const handleVoiceChatAnswer = async (data) => {
+                if (voiceChatPeerConnection) {
+                    await voiceChatPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                }
+            };
+
+            const handleVoiceChatICECandidate = (data) => {
+                if (voiceChatPeerConnection) {
+                    voiceChatPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => console.error("Error adding voice chat ICE candidate", e));
+                }
+            };
+
+            const endVoiceChat = () => {
+                if (voiceChatStream) voiceChatStream.getTracks().forEach(track => track.stop());
+                if (voiceChatPeerConnection) voiceChatPeerConnection.close();
+                voiceChatStream = null;
+                voiceChatPeerConnection = null;
+                voiceChatModal.classList.add('hidden');
+                // Notify other user
+                const recipient = activeUser === 'raushan' ? 'nisha' : 'raushan';
+                socket.send(JSON.stringify({ type: 'voice-chat-end', payload: { to: recipient } }));
+            };
             function formatSeenTime(isoString) {
                 if (!isoString) return '';
                 const date = new Date(isoString);
@@ -2122,6 +2278,22 @@
                                         endCall(true);
                                     }, RECONNECTION_TIMEOUT);
                                 }
+                            }
+                            break;
+                        // --- Voice Chat Signaling ---
+                        case 'voice-chat-offer':
+                            handleVoiceChatOffer(eventData.payload);
+                            break;
+                        case 'voice-chat-answer':
+                            handleVoiceChatAnswer(eventData.payload);
+                            break;
+                        case 'voice-chat-ice-candidate':
+                            handleVoiceChatICECandidate(eventData.payload);
+                            break;
+                        case 'voice-chat-end':
+                            if (voiceChatPeerConnection) {
+                                console.log("Received voice chat end signal.");
+                                endVoiceChat();
                             }
                             break;
                     }
@@ -2882,6 +3054,16 @@
                     unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Restart polling
                 });
             });
+
+            // --- Voice Chat Button Listeners ---
+            voiceChatButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const currentUser = button.dataset.user;
+                    const recipient = currentUser === 'raushan' ? 'nisha' : 'raushan';
+                    startVoiceChat(recipient);
+                });
+            });
+            endVoiceChatBtn.addEventListener('click', endVoiceChat);
 
             // --- Mark as Seen on Window Focus ---
             window.addEventListener('focus', () => {

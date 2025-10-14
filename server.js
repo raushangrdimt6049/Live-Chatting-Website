@@ -56,7 +56,7 @@ wss.on('connection', (ws) => {
 
         // --- WebRTC Signaling and General Message Forwarding ---
         const recipientUser = data.payload?.to;
-        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || ['ice-candidate', 'user-busy'].includes(data.type);
+        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || data.type.startsWith('sound_alert') || ['ice-candidate', 'user-busy'].includes(data.type);
 
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.
@@ -65,7 +65,7 @@ wss.on('connection', (ws) => {
             if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
                 recipientWs.send(rawMessage.toString());
             } else {
-                // If recipient is not found, do nothing. The caller's client will handle the timeout.
+                // If recipient is not found, do nothing. The caller's client will handle the timeout or the alert will just not be delivered.
                 console.log(`Call recipient '${recipientUser}' not found or not connected. Call will not be delivered.`);
             }
             return; // Stop processing after relaying the targeted message
@@ -75,10 +75,10 @@ wss.on('connection', (ws) => {
         // The client-side will decide whether to display the information.
         // This is simpler and more robust for general events.
         wss.clients.forEach((client) => {
-            // Broadcast to all clients. The client-side logic will handle not re-rendering for the sender.
-            // This ensures events like 'messages_seen' and 'chat_cleared' reach everyone.
-            if (client.readyState === WebSocket.OPEN) {
-                 client.send(JSON.stringify(data));
+            // Do not send the message back to the original sender.
+            // This handles general broadcasts like typing indicators.
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                 client.send(rawMessage.toString());
              }
         });
     });

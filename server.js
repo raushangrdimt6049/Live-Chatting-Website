@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const wss = new WebSocketServer({ server });
 
 // Map to store clients and their associated user
-const clients = new Map();
+const clients = new Map(); // Now stores: Map<string, Set<WebSocket>>
 
 wss.on('connection', (ws) => {
     console.log('Client connected');
@@ -33,8 +33,14 @@ wss.on('connection', (ws) => {
         if (data.type === 'register') {
             const user = data.payload.user;
             ws.user = user; // Associate user with this WebSocket connection
-            clients.set(user, ws);
-            console.log(`User '${user}' registered`);
+
+            // If the user is connecting for the first time, create a new Set
+            if (!clients.has(user)) {
+                clients.set(user, new Set());
+            }
+            // Add the new connection to the user's Set of connections
+            clients.get(user).add(ws);
+            console.log(`User '${user}' registered a new connection. Total connections for user: ${clients.get(user).size}`);
 
             // Notify all other clients that this user is now online
             wss.clients.forEach(client => {
@@ -45,12 +51,25 @@ wss.on('connection', (ws) => {
 
             // Inform the newly connected user about the status of the other user
             const otherUser = user === 'raushan' ? 'nisha' : 'raushan';
-            const otherUserSocket = clients.get(otherUser);
-            const otherUserStatus = otherUserSocket && otherUserSocket.readyState === WebSocket.OPEN ? 'online' : 'offline';
+            const otherUserConnections = clients.get(otherUser);
+            const otherUserStatus = (otherUserConnections && otherUserConnections.size > 0) ? 'online' : 'offline';
             ws.send(JSON.stringify({ type: 'user_status', payload: { user: otherUser, status: otherUserStatus } }));
             // Also send self-status to correctly initialize UI
             ws.send(JSON.stringify({ type: 'user_status', payload: { user: user, status: 'online' } }));
 
+            return;
+        }
+
+        // Handle request for all user statuses (for initial page load)
+        if (data.type === 'get_all_user_statuses') {
+            const allStatuses = {
+                raushan: clients.has('raushan') ? 'online' : 'offline',
+                nisha: clients.has('nisha') ? 'online' : 'offline'
+            };
+            ws.send(JSON.stringify({
+                type: 'all_user_statuses',
+                payload: allStatuses
+            }));
             return;
         }
 
@@ -61,9 +80,12 @@ wss.on('connection', (ws) => {
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.
         if (recipientUser && isSignalingMessage) {
-            const recipientWs = clients.get(recipientUser);
-            if (recipientWs && recipientWs.readyState === WebSocket.OPEN) {
-                recipientWs.send(rawMessage.toString());
+            const recipientConnections = clients.get(recipientUser);
+            if (recipientConnections && recipientConnections.size > 0) {
+                // Send to all connections for that user
+                recipientConnections.forEach(recipientWs => {
+                    if (recipientWs.readyState === WebSocket.OPEN) recipientWs.send(rawMessage.toString());
+                });
             } else {
                 // If recipient is not found, do nothing. The caller's client will handle the timeout or the alert will just not be delivered.
                 console.log(`Call recipient '${recipientUser}' not found or not connected. Call will not be delivered.`);
@@ -88,15 +110,21 @@ wss.on('connection', (ws) => {
         // Remove user from the clients map on disconnect
         if (ws.user) {
             const disconnectedUser = ws.user; // Get the user before deleting
-            clients.delete(disconnectedUser); // Remove the user from the active map
-            console.log(`User '${disconnectedUser}' connection closed. Starting grace period.`);
+            const userConnections = clients.get(disconnectedUser);
+
+            if (userConnections) {
+                userConnections.delete(ws); // Remove the specific connection that closed
+                console.log(`User '${disconnectedUser}' connection closed. Remaining connections: ${userConnections.size}`);
+                // If that was the last connection for the user, clear the entry from the map
+                if (userConnections.size === 0) {
+                    clients.delete(disconnectedUser);
+                }
+            }
 
             // Wait for a short period before broadcasting the offline status.
             // This gives the client a chance to reconnect without appearing offline.
             setTimeout(() => {
-                // If the user has NOT reconnected within the timeout, then broadcast offline status.
                 if (!clients.has(disconnectedUser)) {
-                    console.log(`Grace period ended. User '${disconnectedUser}' is offline. Broadcasting status.`);
                     wss.clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
                             client.send(JSON.stringify({ type: 'user_status', payload: { user: disconnectedUser, status: 'offline' } }));
@@ -193,21 +221,28 @@ app.post('/api/messages/mark-as-seen', async (req, res) => {
     const sender = user === 'raushan' ? 'nisha' : 'raushan';
 
     try {
-        const result = await pool.query(
+        // First, update the messages that are currently unread.
+        await pool.query(
             `UPDATE messages SET is_seen = TRUE, seen_at = CURRENT_TIMESTAMP 
-             WHERE sender = $1 AND is_seen = FALSE 
-             RETURNING *`,
+             WHERE sender = $1 AND is_seen = FALSE`,
             [sender]
         );
 
-        const updatedMessages = result.rows;
-        // Broadcast the fact that these messages have been seen
+        // Then, fetch ALL messages from that sender that are now marked as seen.
+        // This ensures that even if no messages were updated in this call (because they were already seen),
+        // the client still receives the full list of seen messages to correctly update its UI.
+        const seenMessagesResult = await pool.query(
+            `SELECT * FROM messages WHERE sender = $1 AND is_seen = TRUE`,
+            [sender]
+        );
+
+        // Broadcast the full list of seen messages to all clients.
         wss.clients.forEach(client => {
             if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ type: 'messages_seen', payload: updatedMessages }));
+                client.send(JSON.stringify({ type: 'messages_seen', payload: seenMessagesResult.rows }));
             }
         });
-        res.status(200).json(updatedMessages);
+        res.status(200).json(seenMessagesResult.rows);
     } catch (err) {
         console.error('Error marking messages as seen:', err);
         res.status(500).json({ error: 'Failed to update messages' });

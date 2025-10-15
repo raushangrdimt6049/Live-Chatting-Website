@@ -1590,6 +1590,7 @@
 
             let socket;
             let unreadCountInterval;
+            let initialStatusLoaded = false; // Flag to check if we've received initial statuses
             const messageElements = new Map(); // To map message ID to its DOM element
 
             // WebRTC state variables
@@ -2277,6 +2278,11 @@
                     // This is the key fix for the online/offline status.
                     if (activeUser) {
                         socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
+                    } else if (!initialStatusLoaded) {
+                        // If no user is logged in, ask the server for the current status of all users.
+                        // This is for the initial load of the selection screen.
+                        socket.send(JSON.stringify({ type: 'get_all_user_statuses' }));
+                        initialStatusLoaded = true;
                     }
                 };
 
@@ -2357,28 +2363,18 @@
                             break;
                         case 'user_status':
                             const { user, status } = eventData.payload;
-                            // Only update the status indicator inside the chat header
-                            const statusIndicators = [
-                                document.getElementById(`${user}-status`), // In chat header
-                                document.getElementById(`${user}-selection-status`) // On selection screen
-                            ];
-
-                            statusIndicators.forEach(indicator => {
-                                if (!indicator) return;
-
-                                const statusText = indicator.querySelector('.status-text');
-                                if (status === 'online') {
-                                    indicator.classList.add('online');
-                                    statusText.textContent = 'Online';
-                                } else {
-                                    indicator.classList.remove('online');
-                                    statusText.textContent = 'Offline';
-                                }
-                            });
+                            updateUserStatusUI(user, status);
+                            break;
+                        case 'all_user_statuses':
+                            // This handles the initial status load on the selection screen
+                            const statuses = eventData.payload; // e.g., { raushan: 'online', nisha: 'offline' }
+                            for (const user in statuses) {
+                                updateUserStatusUI(user, statuses[user]);
+                            }
                             break;
                         // --- WebRTC Signaling Cases ---
                         case 'call-offer':
-                            handleIncomingCall(eventData.payload);
+                            handleIncomingCall(eventData.payload); // The payload here is for the call, not a user status.
                             break;
                         case 'call-answer':
                             handleCallAnswer(eventData.payload);
@@ -2452,6 +2448,25 @@
                 return socket;
             }
 
+            function updateUserStatusUI(user, status) {
+                const statusIndicators = [
+                    document.getElementById(`${user}-status`), // In chat header
+                    document.getElementById(`${user}-selection-status`) // On selection screen
+                ];
+
+                statusIndicators.forEach(indicator => {
+                    if (!indicator) return;
+
+                    const statusText = indicator.querySelector('.status-text');
+                    if (status === 'online') {
+                        indicator.classList.add('online');
+                        statusText.textContent = 'Online';
+                    } else {
+                        indicator.classList.remove('online');
+                        statusText.textContent = 'Offline';
+                    }
+                });
+            }
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
                 const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
@@ -3156,21 +3171,49 @@
                         document.getElementById('raushan-chat').classList.add('hidden');
                     }
 
+                    await initializeApp();
+
+                    // Register the user on the existing WebSocket connection
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
+                    }
+                } else {
+                    errorMessage.textContent = 'Incorrect Password!';
+                }
+            });
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (passwordInput.value === PASSWORDS[activeUser]) {
+                    // Correct password, proceed with login
+                    loginModal.classList.remove('visible');
+                    selectionContainer.classList.add('hidden');
+                    chatAppContainer.classList.remove('hidden');
+                    document.body.classList.add('chat-active'); // Apply the new background
+
+                    clearInterval(unreadCountInterval); // Stop polling for unread counts
+                    document.getElementById('raushan-notification').classList.add('hidden');
+                    document.getElementById('nisha-notification').classList.add('hidden');
+
+                    // Show the correct user's chat window
+                    if (activeUser === 'raushan') {
+                        document.getElementById('raushan-chat').classList.remove('hidden');
+                        document.getElementById('nisha-chat').classList.add('hidden');
+                    } else {
+                        document.getElementById('nisha-chat').classList.remove('hidden');
+                        document.getElementById('raushan-chat').classList.add('hidden');
+                    }
+
                     // **CRITICAL FIX**: Initialize app data first, then establish the WebSocket connection.
                     await initializeApp();
 
-                    // Unlock audio context to allow for background sounds like alerts.
-                    // This is a workaround for browser autoplay policies.
-                    const unlockAudio = () => {
-                        alarmSound.play();
-                        alarmSound.pause();
-                        alarmSound.currentTime = 0;
-                        document.body.removeEventListener('click', unlockAudio);
+                    // Register the user on the existing WebSocket connection
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
+                        initialStatusLoaded = true; // We are now logged in, no need for initial status check on logout
                     };
                     unlockAudio(); // Try immediately
                     document.body.addEventListener('click', unlockAudio); // And on next click as a fallback
 
-                    setupWebSocket(); // This will now correctly register the activeUser.
                 } else {
                     // Incorrect password
                     errorMessage.textContent = 'Incorrect Password!'; 
@@ -3232,7 +3275,7 @@
             // --- Mark as Seen on Window Focus ---
             window.addEventListener('focus', () => {
                 // If a user is logged in and the window gets focus, mark messages as seen.
-                if (activeUser) {
+                if (activeUser && socket && socket.readyState === WebSocket.OPEN) {
                     fetch('/api/messages/mark-as-seen', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser })
                     });
@@ -3330,7 +3373,7 @@
             }
             
             // Initial setup when page loads
-            // Do NOT fetch messages or set up WebSocket on initial load. This happens after login.
+            setupWebSocket(); // Connect immediately to get live status updates
             updateUnreadCounts();
             unreadCountInterval = setInterval(updateUnreadCounts, 5000); // Poll every 5 seconds
 

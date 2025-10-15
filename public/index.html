@@ -642,6 +642,27 @@
             font-size: 0.9rem;
             height: 1.2em;
         }
+
+        .user-selection-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-selection-box .status-indicator {
+            font-size: 0.9rem;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .user-selection-box .status-indicator .status-dot {
+            background-color: #ff6b6b; /* A softer red for offline */
+        }
+
+        .user-selection-box .status-indicator.online .status-dot {
+            background-color: #2ecc71; /* Green for online */
+        }
         
         @keyframes pulseRecording {
             0%, 100% { opacity: 1; }
@@ -1229,11 +1250,23 @@
     <div class="selection-container" id="selection-container">
         <h1 class="main-header">💕 Love Chatting 💕</h1>
         <div class="user-selection-box" data-user="raushan">
-            ❤️ Raushan_143 ❤️
+            <div class="user-selection-content">
+                <span>❤️ Raushan_143 ❤️</span>
+                <div class="status-indicator" id="raushan-selection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+            </div>
             <span class="notification-badge hidden" id="raushan-notification"></span>
         </div>
         <div class="user-selection-box" data-user="nisha">
-            💖 Nisha_143 💖
+            <div class="user-selection-content">
+                <span>💖 Nisha_143 💖</span>
+                <div class="status-indicator" id="nisha-selection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Offline</span>
+                </div>
+            </div>
             <span class="notification-badge hidden" id="nisha-notification"></span>
         </div>
     </div>
@@ -2325,18 +2358,23 @@
                         case 'user_status':
                             const { user, status } = eventData.payload;
                             // Only update the status indicator inside the chat header
-                            const statusIndicator = document.getElementById(`${user}-status`);
+                            const statusIndicators = [
+                                document.getElementById(`${user}-status`), // In chat header
+                                document.getElementById(`${user}-selection-status`) // On selection screen
+                            ];
 
-                            if (statusIndicator) {
-                                const statusText = statusIndicator.querySelector('.status-text');
+                            statusIndicators.forEach(indicator => {
+                                if (!indicator) return;
+
+                                const statusText = indicator.querySelector('.status-text');
                                 if (status === 'online') {
-                                    statusIndicator.classList.add('online');
+                                    indicator.classList.add('online');
                                     statusText.textContent = 'Online';
                                 } else {
-                                    statusIndicator.classList.remove('online');
+                                    indicator.classList.remove('online');
                                     statusText.textContent = 'Offline';
                                 }
-                            }
+                            });
                             break;
                         // --- WebRTC Signaling Cases ---
                         case 'call-offer':

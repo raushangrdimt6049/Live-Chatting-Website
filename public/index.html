@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Love Chatting</title>
+    <title>Ministry of Defence</title>
     <!-- Add a link to your favicon -->
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="https://i.pinimg.com/474x/f7/2a/b4/f72ab43202047860f3dace2bd2728502.jpg" type="image/x-icon">
     <style>
         /* --- Google Font --- */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
@@ -30,38 +30,8 @@
 
         /* New class to apply the love theme background when chat is active */
         body.chat-active {
-            /* The background is now applied to .chat-app-container */
-        }
-
-        /* --- Animated Background --- */
-        .hearts-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            z-index: 0; /* Changed from -1 to bring it above the body background */
-        }
-
-        .emoji-float {
-            position: absolute;
-            bottom: -50px; /* Start below the screen */
-            font-size: 2rem;
-            color: rgba(255, 255, 255, 0.7); /* Made slightly more opaque for dark bg */
-            animation: floatUp 10s infinite linear;
-        }
-
-        /* Animation for floating hearts */
-        @keyframes floatUp {
-            0% {
-                transform: translateY(0);
-                opacity: 0.5;
-            }
-            100% {
-                transform: translateY(-100vh);
-                opacity: 0;
-            }
+            /* A simple gradient for the chat view */
+            background: linear-gradient(45deg, #1d2b3c 0%, #2f4858 100%);
         }
 
         /* --- Main Chat Container --- */
@@ -72,11 +42,46 @@
             width: 90%;
             max-width: 1200px;
             position: relative; /* Ensure content is above the emojis */
-            background-image: url('https://thumbs.dreamstime.com/b/blue-neon-heart-sign-stylish-cafe-interior-suitable-diverse-creative-needs-401031946.jpg');
-            background-size: cover;
-            background-position: center;
+            z-index: 1; /* Make sure chat container is on top of background elements */
             border-radius: 25px;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            overflow: hidden; /* Hide overflowing parts of the slideshow */
+        }
+
+        /* --- Background Slideshow --- */
+        .background-slideshow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1; /* Behind all content */
+            background-size: contain; /* Changed from cover to contain */
+            background-position: center;
+            background-repeat: no-repeat; /* Prevent image from repeating */
+            animation: slide 9s infinite;
+            background-color: rgba(0, 0, 0, 0.5); /* Fallback for empty space */
+        }
+
+@keyframes slide {
+    0%, 30%, 100% {
+        background-image: url('https://i.pinimg.com/236x/f3/63/5c/f3635c7ae1d6779135957b8cccd6cdca.jpg'); /* Army */
+        opacity: 1;
+    }
+    33%, 63% {
+        background-image: url('https://i.pinimg.com/474x/7b/e0/6e/7be06eb6e6a0dddda7f24a9758ff7c43.jpg'); /* Navy */
+        opacity: 1;
+    }
+    66%, 97% {
+        background-image: url('https://w0.peakpx.com/wallpaper/385/554/HD-wallpaper-indian-air-force-abhinandhan-air-force-army-best-india-logo-modi-navy-soldiers-war.jpg'); /* Air Force */
+        opacity: 1;
+    }
+}
+        }
+
+        /* Hide the slideshow when the chat is active */
+        body.chat-active .background-slideshow {
+            display: none;
         }
 
         /* --- Individual Chat Box Styling --- */
@@ -819,6 +824,29 @@
             .message {
                 max-width: 85%;
             }
+
+            /* --- Mobile-specific size adjustments --- */
+            .chat-header {
+                padding: 15px;
+                font-size: 1rem;
+            }
+            .message-image, .message-video {
+                max-height: 200px; /* Reduce max height for attachments */
+            }
+            .chat-input {
+                font-size: 0.9rem;
+            }
+            .attach-button, .camera-button, .voice-record-button, .send-icon-button {
+                font-size: 1.3rem; /* Slightly smaller icons */
+                padding: 0 8px;
+            }
+            .call-avatar {
+                width: 120px;
+                height: 120px;
+                font-size: 4rem;
+            }
+            .call-info h2 { font-size: 1.5rem; }
+            .call-info p { font-size: 1rem; }
         }
 
         /* --- Image Zoom Modal --- */
@@ -917,6 +945,20 @@
             background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
         }
 
+        .camera-top-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px;
+            display: flex;
+            justify-content: flex-end; /* Align to the right */
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+            z-index: 1; /* Ensure it's above the video stream */
+        }
+
+
         .camera-control-btn {
             background: none;
             border: none;
@@ -928,6 +970,10 @@
         }
         .camera-control-btn:hover {
             transform: scale(1.1);
+        }
+        .camera-control-btn.active {
+            color: #f1c40f; /* Yellow color for active flash */
+            text-shadow: 0 0 10px #f1c40f;
         }
 
         .capture-btn {
@@ -1244,41 +1290,19 @@
 <body>
 
     <!-- Container for the animated hearts -->
-    <div class="hearts-container"></div>
+    <div class="background-slideshow"></div>
 
     <!-- Initial selection screen -->
     <div class="selection-container" id="selection-container">
-        <h1 class="main-header">💕 Love Chatting 💕</h1>
-        <div class="user-selection-box" data-user="raushan">
-            <div class="user-selection-content">
-                <span>❤️ Raushan_143 ❤️</span>
-                <div class="status-indicator" id="raushan-selection-status">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Offline</span>
-                </div>
-            </div>
-            <span class="notification-badge hidden" id="raushan-notification"></span>
-        </div>
-        <div class="user-selection-box" data-user="nisha">
-            <div class="user-selection-content">
-                <span>💖 Nisha_143 💖</span>
-                <div class="status-indicator" id="nisha-selection-status">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Offline</span>
-                </div>
-            </div>
-            <span class="notification-badge hidden" id="nisha-notification"></span>
-        </div>
-    </div>
-
-    <!-- Login Modal -->
-    <div class="login-modal-overlay" id="login-modal">
-        <div class="login-box">
-            <h2 id="login-for-user">Secret Login</h2>
-            <form id="login-form">
-                <input type="password" id="password-input" placeholder="Enter Password" required>
-                <p class="error-message" id="error-message">&nbsp;</p>
-                <button type="submit" class="send-icon-button" style="background: #d6336c; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Unlock Chat</button>
+        <div class="login-box" style="background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.18); padding: 40px;">
+            <h3 style="font-size: 2rem; color: rgb(12, 25, 212); text-shadow: 1px 1px 3px rgba(0,0,0,0.3); margin-bottom: 15px;">Welcome to NDA</h3>
+            <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxIQEBESERIQEBENEA4QEA8QDhANDRIWFBEWFhYbHxMYHCggJBomJxUTIT0hMTUtOjouGCAzOD84NzQtMS0BCgoKDg0OGhAQGy4lICU3LTItLi0rKy0vNi4tNTctLSsvNzcrMDEuLTU3NisrLSstKzctNzMtLS81LS0rNTAyMP/AABEIAKkA+gMBIgACEQEDEQH/xAAbAAEAAwEBAQEAAAAAAAAAAAAAAQUGBAcDAv/EAD0QAAICAQMDAwIEBQIADwAAAAECAAMRBBIhBRMxBiJBFFEjMmFxM0KBkfChsQcVJDRSYnKCsrPBwtHh8f/EABoBAQADAQEBAAAAAAAAAAAAAAACAwQBBQb/xAAvEQACAgEBBgQGAQUAAAAAAAAAAQIRAyEEEhQxQWFxgbHwEyIyQlHR4QUjkcHx/9oADAMBAAIRAxEAPwDymTESB7xESYgESYiAREmIBESYgERJiAREmIAkSYgERJiAREmIBESYgERJiAREmIBEmIgERJiAREmIAiIgCIiAIiIAiIgCJEmAIidnS+nNqGcKHbtpvIQBiFByxx5OAGOBzxONpK2cbo44nV1LQNQ2CQysA1di81up5BB8YP8A8/OQOWE7VoJ2IifoUsRkKxH3CMR/fE6Gz8xBGDg5BHwQQf7GIOiIH++MfJ58S3PQLBWzkMWrr7lqrjFAYfhbif5nyPb5xlvHJi5JcyLkkVEREkSESDJgCIiAIiIAiIgCIiAIiIAiIgCIiAIiIB99Bu7qFQcows4GcbOScfYYz+wM/Wv0rVNhhjeFcY5XDKG4P258/bB/Z03PdXawU+7BJwDlSCM+MnJH7kA8TVaOmu3TLXrPwq1OynWAMyUOxz23PntkncM4KliR7SSKsuTcVlMpVIxk6On66zT2LZUxV0IIKnHj/P8AWX+p9HXoRXtVu4Gai9WDpc3BWtWHBJUMwBAyc4ycA5u6pkJDAqQSDnI5Hnz8/pxEcmPKqTsmpJm6Xs6+hnROeX1OmRcvWx5a6lR8eC9f/eXnBOO1/TXpsCHDCzBqsUg1up5DBhxjgnP6H5zj8dO11mnsW2pirqQQQceP8/1M29NteupayoFGGbL6a1DWUvkE3VVnyvCl6vnyOcE5/mwOvtIO48jNjoQ7G/cDYDU3Z9yWGuyt3R+5ynu2N7ME4+c5EsUqo9yipdRbbp2BZmFDU3AjwS68YLtjnnbj5A+YuDMRY4cVI1YuWwW1vkM7bXHGFF6gfYEggHInJo72esYUHctVbF66b7DWFJVvxjlCAoGR7faDjPnknKXN0UuZ02dHqt1HvsaigVhhZZUUJXts4OwZOCUcDxkEY+xo+o9PelgGx7wjKAyu2LF3JyOORz/TnB4ljQpZGwoSzBzWbGtZhWpVTkk5cK1jcY8EjHiXvSaXuJsNu4KldhsuK306VCoAsckZZzjFdJycYLce09WSUNW9DscjOP090IqSzFVtRVeyyxQ9OjRuQzA8Na38tfzwze383D6h66LB9Pp9yaatmbLNutucn32WP/M7c8/0HHl6i66LB9Pp9y6dGZiWbddc5J32O/lnbzn9cDiZ/Enixub+JPyX+y+MerAkzr6Z0y3UvsrUnILFvCqo8sScAKPO44HHMv8ATelRt7+pdNLpEyBa+d16gkoy1k7mZhzj2+AcY4luTPCHNnXNIpem6Vyr2KCd2aV4yWNisMAfc4A/YkyuH+fM2PWGbdUtSDTU1qzUi1irhWU5uc4zubAO7j2oFTIxMcB/nj/SSxy3o2yMJW2TERJloiIgCIiAIiIAiIgCIiAIiIAiIgHT06xltBVS5IYMgUuXQg7xgfpk5+4B88zS9A1jUhrEsNVf5WsdWt0+DyFYKDms5JxgkZbAHJGSRipBUkFSCCDggjxz95ofT/VWrYMl1tdjE7u2akA54BZwRsPBwQwz9pTmjvQaM+Zcmbe3VodFtxoFrsfbd9JfVdWi4yXrrbZ+ICAQvkEBhk8St1Lq+06urvVagmrSW2WolzFVJJs1bitwAB4ZGPPGTjNzodWtihNXVWy3MB3Ln6YyuxI2KK6nJLE/OPPM49RTdoybLSTWFtd9Rp+5bfWN6haq0vs21hskbhuJIx+3g4pKEnCqbb6+jJu2kyqT0jorkNldzVooJbUFT9BkMQVW5wm7GMZ58Tl0vpLV0Ot+itS4qFsXY3bs2kEqdjgHBGTnnIP2lpq009rVNZQ+jPvvVmFVa1hThXKMhsttyw/DAALH55afD6ioVgLqlcdkXOmorruY32nNLWdtwbLT5IcsqfP2mmOTLX1eTV+hzeM31ei63VW0ilq7Ney2Lp0rapi7DLAEjAG7DHPG0Hn5PJ0/VtSi7x2t6Fk7iBScLgMCQBsPvAIz4I++d9p9Tdb7Be9r01stda6bv1l6wG7/AH7Su5WdwuVC8ABcLyapKhc2ne82tULDZZRaCmnqZBsv9gVdm0nBUAgEgbtx5vWf5XGS5fgp+E7tGVuexGsc12Vtcy9pmT3koquF8Z3N3a2BHzt+Jc3rqdTXXo9JUxqpx3WRMd24/wAR2xxnJI5+ABNZd0bTGxlU6YbCtmm01em7VqAIUY+0g2DOGDHPP6ZBr7tYwr7dtyrUr9x0u0jVVrWbCllQpQlXI2rZgFHUElfkCC2uOStxcvymTjjcHbKnT+hShX6rUU6fcwTBYMQxXIUkEKCcEgFhnBxLCz03odK4Fm93UkhNRYNCLVABLVWkFGHOMbl/p8/SxqH2rbrMt3bdNYF7eztMhapHsy1j6cgfxG3lD5wZ9tFq6tNUhWjU1AsaPq0GmuuosV9hHeQCt6/aAS2PjzwRCeXM9XJ+C0/kndnz7w7a5Xs6TU7LtKorSuu3acqt1QLBxxgmy1BjkDxLPrfVQgqsLdOqt2KTY966vU1s3BWqtUOTyPd+vPHMnRdLbJt1S0V0Du9yizumk7WJW3ss7V1k8MVyw5+DzPl1fq9qjdWG0ykbe5Xd0ttw5wVYFn544Cn4xM1xyZUkrq9bpfyHcYsxvUbHW/cVsstOXrDqXLO3IYqSSzHAbPIwoHjAma/rnPknknPnmWnU9cWYlbLC1gIsLYD8nB5BOS3ySSfjjxKyfQwVRSGFUrEREkXCIiAIiIAiIgCIiAIiIAiIgCIiAJ+qrCrBlJVkIKsMZBHjzPzEHKLPRdbsrsFmfeofa6jDqSCMgE4BPgkYOCQJfaH1Y1TDbYlhO+y2wm1HusCkorXW7iKl8bRt+P1Mx0SrJhx5PqVlfw100Nu/rdwVsLI7otprOAQtz+w+0DcKlAyE+SdzE+By6n1jcGxW5Y7NOlZTG5VUB3BJXBLMAWOPjHAyDTDobHTrcHUlgXFXtDMAGJwc5JARmIwBgEZzkC99K9HUfiBqzaFFj3MBbpdFWfFjZ9r2nB2188jc3HBzSxbPjV7qIvxOrSLqEUEWWjVFErVS5dqxZYbK0fHL22NkrWMZyXs9oAnf1VrLmF6V16d3U2alqtZb3K1psFe60CvYXRi2OGPsJHgGdXTaECIyMUtvTUWVu7b30emLkXahieTe+Blz5Zgo9qkTgqvet9StGmNf1lenS6p9qitCKaqVrYZzaa9SpbdxuYHzwcTlvTbitV79+Hm400TQtj7j3bH+hrFNYq2LfXSoUPbVZQQtqBw6sPOAPDTP6/qep0tnNj/iG26u+i38O3vgbnyQQSdin49yg8MDNN0pFKVou/TLW1X0twCm3TO4KU2kAY227Gqsr8dxDn82Q1miW5L0sq2GpnOr0tYLmp+M6nTg4LVNlS1f/uAJshkjGbTWnv37QS/JTaX1zauX3JkXJYKSrD8ykXDIH5WwDj4YgjAyJ9tF6yasKiMnbJeoKzrW3ZJyGLADF67mG7+YAErnznKugO9/aR63U7NtyuHrbuECsDke5iQADj5zjBxwa/SmqxkJDY2EMAQCGUMvB5BwRx98ia+F2eem6TS/DNGfVbnFot2242WitXqa9M4VmUEVGxRxnHgnz8UH/GVgBCkVhgQQowMHyADkAfoMTkiaYYoQ+lUSWNdSBJiJMsEREAREQBERAEREAREQBERAEREAREQBERAElFJICgszEBVAJZiTgAAc5PjEiavoXSdqb8hHdMNa3sNZuqsNKoxG3llQOfOLVUY92a8k1BWyMpUfXp/R2SlXPZss0jNcpurN1SEEb6thGWqKmxy43Dch2fzMXqrq12pF3bV660+nOo07IUtqxSADnwyctyPjBxyJanWB9RVpqHOnstLbMJn6dD3nr/DwCtq950C54UA4zjGb60dVpRbpmZXCgCx1Y22BDkDLZx8suSAwDFeAQDhx/PluXPp4FVa6HL0nrbU5R8mu019/GAXrrIYV5AzgkEfsTmbCrqz302Wdqw2XvrlRgh7bX2X6d9PWpOT+SjGfjaJ5ufH9DPYfROfoKf3u/wDNP/3K/wCqThggsm7bstji3pUnRm+v+oa0a9AnPf11TJYhHd0+oIcqVJVgVcswP3GfnnO9M6lqX1i3VMxtXk2Ox/IpwWsck+AQM8/bnwft6+/5/f8A9of+BJWdH1ttNm6nJYggj3DgENnKkEEYDbgRjH2zNWz44vCmlzXqQ3as2AuTqCaZBTVaumqRzZZV27NSy2CpEVzytJZsbj8gjGAc5PrekZHNhY2pezMtxUruPkgggAMMjjxggj24M1Ogrvp0p1dl4WiyykJVUotVAMqGRCcKVAPtOSccgHBnRqaUvU7VrItVBtLEU2KA+z8XZuJrp05IYflazB/mU04sixyaj9Po+pyOmvU89idXU9GabSvu2kBk3Da+05xuHw4wVI+6mconop2rLU7ERE6dEREAREQBERAEREAREQBERAEREAREQBJRSSAPJIA+3JwP95EiDgqa22w1aWk2Fc8LQL7WAOCxBBwPHAx5H7zSdR61dQxr+no09y0pRcyhmJKEHO0HbuVhkN7sEDBxiaT0P0fTtp/q1W6vUq+oD20WP3GyA2O3ypyHAxjzicnqejp7l77NVbZaGrW2siivVKOF3dl0RiR7cjj5P3nmvbYzzPHuul2fP9GeGNwW/NmK0V+yzczPyTudCe7yck5yDk4/TgmaavSt1DTdykt9VRXsvrVjuvrAADYzliMKjDnICH9D1XejdLhWXqOnAtTuVmwBAy5IznuDjgj9wQecz8D0tq9EPqtPZXctfu30WbzgA5O0gZGM5A3cZyMeOz2rFOnB1Lpaa8ix/kyA0j7thUhiQu3y3Jx485/T78T2joOjNGmpqbhkTLjjhmYsRx9s4/pKvoXrCjUkCzbTeOMnHbPxxYclc/Y/sCZozPD/AKvteXIljnDdo17PFc7PNP8AhJ6ay6kXAHZcq8+BuChSM+M+0HH2OR84qPTvQrtQ5wTVSoPeuJK1Ig5bcQcYGM7fnA+MkesdQ11VCbrmVUPhSN7Pj7Jgkkf/ALMdruqanquadGhWivG4llRfzHG5ydoHBIQZ5BPIAI27DtuaWFR3aS+58v8ApTmiovmZvrvVUcvXV3FqrC1UpkgFctuZxnG8li2f+k5HgYPB03qr0K6AI9dqurI4YY7g2vtYEFSw9px5GM/GLrRel9O5cN1HQg1ANZtse1VBYD+IdinkgcZ5I/Sdmq9J6KoN3Oo0grV3dnbUO6lN67Q1oBLDGP3E9L4+GPya/wCH+ilNVZQeo7L3VNSmiWrTdpVDpW1lC4c7snACncxHx5lVU+9FfG3cXUgZK8AHIzzjnx/b7D0v0/oE6l05KXuZaNy5ppNRt4cld77OGJJbbz8TAdY06VXWVVbu1S9iV7iGbAsf5AAyfvx8SWzbSpylirWPoQjCSkpXozjiImw0iIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgGy9F+oNPTRbp9SbVW5gyvVncvtCnkEMD7UIIzyCP3mu9XOoa3qFj33aa/S16vbjTtSUIWuyh6d4JP8AMC2M/wBTjDIxMvCxU5TjzZVLHvcz0NNTWraR69ZpbBo9FVR9Ldbq9NR3q0/iAqm1gT8N5+f0+3oPpG22lkdNmm0Q7o0+oqcX32WO7CwITuCBgvPyq/pPOquMnGSiuwXnDEDI4z4HJx9gZpekeg7gTquo6j6NQQ7YcfU8/wDWzhScj7n9Jn2jHDHjalOr7a+FeZS4uM0krM0Qc5GeAvuHAHtAPPj+k1/pn1g9FTV2juALijJBCvzjkH+Hwcj4OMcEgX/SrNFU+k7OkZq9bYaaddqNrlyi8ELZl8H2jwvzifHqHrK6iykG/p1tV7FP+SJdfqKm8DdSbAccgffg/PBpy5uI/tvFa7uvSy1T3UnZguqdQu1NjPYxctj5B8HjgE4A+3j/AHO8/wCDuvvaDU1Y5dnRvK/xNMEGSOQBg8/vOjqnqTTnU2aayjT6wUUvbdajVZTtg90bLgMsMMcKxOMfOcVNXTdH1KzUafTvdpV7dGoq7b3im1SMHfprT+ZS2MqQMNx+scuR5MG7OLglTvmtDm/TpanBpNDYmkv0912gpusrGn7luupt/DVw6qKqK2O4bfzM3g8Dxi31Rqt1ektfqlSUaGusVV1VE21uKkRypesqQxQNk54wMTJdU9L6jprYsZLKLxZtdHI9yLkHYcEMMqPt7sSn/v8A3M2xxRypZIT59Ul1062V48dpp6UelemeoaXRU6ZbNRRY+lo1NZFNeptcmzUG1QGwFx4zkfHmec6mzc7N53EnPn9//WfP/PvEtw7Msc5Tu2zRGNKiYiJoJiIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAAccjyMY+fE9T9E9frt0hS6xK20y7C1li1k1EEAhmPleVz9gp+Z5ZJViPBI/Ykf4f1mXa9kjtMN2WhzVO0bBtVoNPXXW1ur176Z6209pb6VKVSwuFrDZbB4ywHOBjEhvWNQvfUV6bs23Mr2NVrdTULSDkbkVQpPJ+PknzknH/5+sTq2SH3Nvz/VIrWNI179c6deNQLtF2m1uO9fp7Ve3IcPlRcoCkkAnGMzUemvojbdel1T2N2xULkGnt0tFVYREUOc4A4LDg4nlElWI8Ej9BwP7ff9ZTm2BTg4Rk0vG/UkoJS3i99Zda+r1LFc9uv2VDxhASRx92JLEfqo+JQxE2YscccFCPJEkIiJM6IiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAIiIAiIgCIiAAIxKxvM/MGbiOxbYkYlVEHOI7FriAJVRA4jsWuIxKqIHEdi1AgCVUQOI7FriTiVMQOI7FriMSqiBxHYtQIxKqIHEdi2xGJUxA4jsWuIxKqIHEdi1AjEqogcR2LXEASqiBxHYtcScSpiBxHYtQIxKqIHEdi1xAEqogcR2LXEnbKmIHEdj/2Q==" alt="NDA Logo" style="width: 100px; height: auto; margin-bottom: 20px;">
+            <h3 style="color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); margin-bottom: 20px;">Admin Login</h3>
+            <form id="admin-login-form">
+                <input type="text" id="username-input" placeholder="User ID" required style="background: rgba(255, 255, 255, 0.5); color: #333;">
+                <input type="password" id="password-input" placeholder="Password" required style="background: rgba(255, 255, 255, 0.5); color: #333;">
+                <p class="error-message" id="login-error-message">&nbsp;</p>
+                <button type="submit" class="send-icon-button" style="background: #d6336c; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Login</button>
             </form>
         </div>
     </div>
@@ -1303,6 +1327,9 @@
 
     <!-- Camera Preview Modal -->
     <div id="camera-preview-modal" class="camera-preview-overlay hidden">
+        <div id="live-camera-top-controls" class="camera-top-controls">
+            <button id="toggle-flash-btn" class="camera-control-btn" title="Toggle Flash">⚡</button>
+        </div>
         <video id="camera-stream" autoplay playsinline></video>
         <img id="photo-preview" class="hidden" src="" alt="Captured Photo">
         <div id="live-camera-controls" class="camera-controls">
@@ -1473,23 +1500,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Animated Hearts ---
-            const emojiContainer = document.querySelector('.hearts-container');
-            const loveEmojis = ['❤️', '💖', '🥰', '😍', '😘', '💌', '✨', '💫', '💕', '💞'];
-            const emojiCount = 40; // Number of emojis
-
-            for (let i = 0; i < emojiCount; i++) {
-                const emoji = document.createElement('div');
-                emoji.classList.add('emoji-float');
-                // Pick a random emoji from the array
-                emoji.innerHTML = loveEmojis[Math.floor(Math.random() * loveEmojis.length)];
-                emoji.style.left = `${Math.random() * 100}vw`;
-                emoji.style.animationDuration = `${Math.random() * 8 + 7}s`; // 7 to 15 seconds for varied speed
-                emoji.style.animationDelay = `${Math.random() * 7}s`;
-                emoji.style.fontSize = `${Math.random() * 1.5 + 1}rem`; // 1rem to 2.5rem
-                emojiContainer.appendChild(emoji);
-            }
-
             // --- Chat Functionality ---
             const raushanForm = document.getElementById('raushan-form');
             const raushanInput = document.getElementById('raushan-input');
@@ -1505,11 +1515,11 @@
             // New elements for login flow
             const selectionContainer = document.getElementById('selection-container');
             const chatAppContainer = document.getElementById('chat-app-container');
-            const loginModal = document.getElementById('login-modal');
-            const loginForm = document.getElementById('login-form');
+            const loginForm = document.getElementById('admin-login-form');
+            const usernameInput = document.getElementById('username-input');
             const passwordInput = document.getElementById('password-input');
-            const errorMessage = document.getElementById('error-message');
-            const loginForUser = document.getElementById('login-for-user');
+            const errorMessage = document.getElementById('login-error-message');
+
             const userSelectionBoxes = document.querySelectorAll('.user-selection-box');
             const switchUserButtons = document.querySelectorAll('.switch-user-button');
             const clearHistoryButtons = document.querySelectorAll('.clear-history-button'); // This was correct
@@ -1537,6 +1547,7 @@
             const retakePhotoButton = document.getElementById('retake-photo-btn');
             const sendPhotoButton = document.getElementById('send-photo-btn');
             const flipCameraButton = document.getElementById('flip-camera-btn');
+            const toggleFlashButton = document.getElementById('toggle-flash-btn');
 
             // New elements for attachment preview
             const attachmentPreviewModal = document.getElementById('attachment-preview-modal');
@@ -1579,15 +1590,15 @@
             const stopAlertBtn = document.getElementById('stop-alert-btn');
             const alarmSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-police-siren-us-1643.mp3'); // Switched to a more reliable source
 
-            const PASSWORDS = {
-                raushan: "asdf@1234",
-                nisha: "11041805143" // Nisha's password remains unchanged
+            const USERS = {
+                "Raushan_143": "asdf@1234",
+                "Nisha_143": "11041805143"
             };
             let activeUserForAttachment = null;
 
             let raushanTypingTimer;
             let nishaTypingTimer;
-
+            
             let socket;
             let unreadCountInterval;
             let initialStatusLoaded = false; // Flag to check if we've received initial statuses
@@ -2278,6 +2289,8 @@
                     // This is the key fix for the online/offline status.
                     if (activeUser) {
                         socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
+                        // Now that the user is registered, fetch the messages.
+                        initializeApp();
                     } else if (!initialStatusLoaded) {
                         // If no user is logged in, ask the server for the current status of all users.
                         // This is for the initial load of the selection screen.
@@ -2925,6 +2938,8 @@
                     cameraStream.classList.remove('hidden');
                     photoPreview.classList.add('hidden');
                     document.getElementById('live-camera-controls').classList.remove('hidden');
+                    document.getElementById('live-camera-top-controls').classList.remove('hidden');
+
                     document.getElementById('preview-controls').classList.add('hidden');
 
                     activeUserForAttachment = user; // Set which user is capturing
@@ -2976,6 +2991,7 @@
                 cameraStream.classList.add('hidden');
                 photoPreview.classList.remove('hidden');
                 document.getElementById('live-camera-controls').classList.add('hidden');
+                document.getElementById('live-camera-top-controls').classList.add('hidden');
                 document.getElementById('preview-controls').classList.remove('hidden');
             });
 
@@ -2984,6 +3000,7 @@
                 cameraStream.classList.remove('hidden');
                 photoPreview.classList.add('hidden');
                 document.getElementById('live-camera-controls').classList.remove('hidden');
+                document.getElementById('live-camera-top-controls').classList.remove('hidden');
                 document.getElementById('preview-controls').classList.add('hidden');
                 capturedImageDataUrl = null;
             });
@@ -2992,6 +3009,26 @@
                 // Toggle between 'user' (front) and 'environment' (back)
                 currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
                 openCamera(activeUserForAttachment); // Re-open the camera with the new mode
+            });
+
+            toggleFlashButton.addEventListener('click', async () => {
+                if (!cameraStreamTrack) return;
+
+                const capabilities = cameraStreamTrack.getCapabilities();
+                if (!capabilities.torch) {
+                    alert('Flash is not available on this camera.');
+                    return;
+                }
+
+                try {
+                    const isFlashOn = cameraStreamTrack.getSettings().torch;
+                    await cameraStreamTrack.applyConstraints({
+                        advanced: [{ torch: !isFlashOn }]
+                    });
+                    toggleFlashButton.classList.toggle('active', !isFlashOn);
+                } catch (err) {
+                    console.error('Error toggling flash:', err);
+                }
             });
 
             sendPhotoButton.addEventListener('click', async () => {
@@ -3140,94 +3177,41 @@
             imageZoomModal.addEventListener('click', (e) => { if (e.target === imageZoomModal) closeZoomModal(); });
 
             // --- Login and View Switching Logic ---
-            userSelectionBoxes.forEach(box => {
-                box.addEventListener('click', () => {
-                    activeUser = box.dataset.user; // Set the user that is trying to log in
-                    loginForUser.textContent = `Login for ${activeUser.charAt(0).toUpperCase() + activeUser.slice(1)}_143`;
-                    loginModal.classList.add('visible');
-                    setTimeout(() => passwordInput.focus(), 100);
-                });
-            });
-
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (passwordInput.value === PASSWORDS[activeUser]) {
-                    // Correct password, proceed with login
-                    loginModal.classList.remove('visible');
-                    selectionContainer.classList.add('hidden');
-                    chatAppContainer.classList.remove('hidden');
-                    document.body.classList.add('chat-active'); // Apply the new background
-
-                    clearInterval(unreadCountInterval); // Stop polling for unread counts
-                    document.getElementById('raushan-notification').classList.add('hidden');
-                    document.getElementById('nisha-notification').classList.add('hidden');
-
-                    // Show the correct user's chat window
-                    if (activeUser === 'raushan') {
-                        document.getElementById('raushan-chat').classList.remove('hidden');
-                        document.getElementById('nisha-chat').classList.add('hidden');
-                    } else {
-                        document.getElementById('nisha-chat').classList.remove('hidden');
-                        document.getElementById('raushan-chat').classList.add('hidden');
-                    }
-
-                    await initializeApp();
-
-                    // Register the user on the existing WebSocket connection
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
-                    }
-                } else {
-                    errorMessage.textContent = 'Incorrect Password!';
-                }
-            });
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                if (passwordInput.value === PASSWORDS[activeUser]) {
-                    // Correct password, proceed with login
-                    loginModal.classList.remove('visible');
-                    selectionContainer.classList.add('hidden');
-                    chatAppContainer.classList.remove('hidden');
-                    document.body.classList.add('chat-active'); // Apply the new background
-
-                    clearInterval(unreadCountInterval); // Stop polling for unread counts
-                    document.getElementById('raushan-notification').classList.add('hidden');
-                    document.getElementById('nisha-notification').classList.add('hidden');
-
-                    // Show the correct user's chat window
-                    if (activeUser === 'raushan') {
-                        document.getElementById('raushan-chat').classList.remove('hidden');
-                        document.getElementById('nisha-chat').classList.add('hidden');
-                    } else {
-                        document.getElementById('nisha-chat').classList.remove('hidden');
-                        document.getElementById('raushan-chat').classList.add('hidden');
-                    }
-
-                    // **CRITICAL FIX**: Initialize app data first, then establish the WebSocket connection.
-                    await initializeApp();
-
-                    // Register the user on the existing WebSocket connection
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
-                        initialStatusLoaded = true; // We are now logged in, no need for initial status check on logout
-                    };
-                    unlockAudio(); // Try immediately
-                    document.body.addEventListener('click', unlockAudio); // And on next click as a fallback
-
-                } else {
-                    // Incorrect password
-                    errorMessage.textContent = 'Incorrect Password!'; 
-                    loginForm.classList.add('shake');
-                    setTimeout(() => loginForm.classList.remove('shake'), 500);
-                }
-            });
-
-            // Close modal if clicking outside the login box
-            loginModal.addEventListener('click', (e) => {
-                if (e.target === loginModal) {
-                    loginModal.classList.remove('visible');
-                    errorMessage.innerHTML = '&nbsp;';
-                }
+                 const username = usernameInput.value;
+                 const password = passwordInput.value;
+                 let userKey = null;
+ 
+                 if (username === 'Raushan_143' && password === USERS.Raushan_143) {
+                     userKey = 'raushan';
+                 } else if (username === 'Nisha_143' && password === USERS.Nisha_143) {
+                     userKey = 'nisha';
+                 }
+ 
+                 if (userKey) {
+                     activeUser = userKey; // Set the active user
+ 
+                     // Stop polling for unread messages since we're in the chat
+                     clearInterval(unreadCountInterval);
+ 
+                     // Show the correct chat box and hide the other one
+                     document.getElementById('raushan-chat').classList.toggle('hidden', activeUser !== 'raushan');
+                     document.getElementById('nisha-chat').classList.toggle('hidden', activeUser !== 'nisha');
+ 
+                     // Hide login screen and show chat app
+                     selectionContainer.classList.add('hidden');
+                     chatAppContainer.classList.remove('hidden');
+                     document.body.classList.add('chat-active');
+ 
+                     // Connect to WebSocket and initialize the app *after* connection
+                     setupWebSocket();
+ 
+                 } else {
+                     errorMessage.textContent = 'Invalid User ID or Password!';
+                     loginForm.classList.add('shake');
+                     setTimeout(() => loginForm.classList.remove('shake'), 500);
+                 }
             });
 
             switchUserButtons.forEach(button => {

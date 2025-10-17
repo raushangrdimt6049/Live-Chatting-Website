@@ -75,7 +75,7 @@ wss.on('connection', (ws) => {
 
         // --- WebRTC Signaling and General Message Forwarding ---
         const recipientUser = data.payload?.to;
-        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || data.type.startsWith('sound_alert') || ['ice-candidate', 'user-busy'].includes(data.type);
+        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || data.type.startsWith('video-chat-') || data.type.startsWith('sound_alert') || ['ice-candidate', 'user-busy'].includes(data.type);
 
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.
@@ -88,7 +88,10 @@ wss.on('connection', (ws) => {
                 });
             } else {
                 // If recipient is not found, do nothing. The caller's client will handle the timeout or the alert will just not be delivered.
-                console.log(`Call recipient '${recipientUser}' not found or not connected. Call will not be delivered.`);
+                console.log(`Signaling message recipient '${recipientUser}' not found or not connected.`);
+                if (data.type === 'call-offer') {
+                    ws.send(JSON.stringify({ type: 'call-recipient-offline', payload: { recipient: recipientUser } }));
+                }
             }
             return; // Stop processing after relaying the targeted message
         }
@@ -144,7 +147,23 @@ wss.on('connection', (ws) => {
 // API to get all messages
 app.get('/api/messages', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM messages ORDER BY created_at ASC');
+        // Join messages with itself to get replied-to message details
+        const query = `
+            SELECT
+                m.*,
+                json_build_object(
+                    'id', r.id,
+                    'sender', r.sender,
+                    'content', r.content
+                ) AS replied_to
+            FROM
+                messages m
+            LEFT JOIN
+                messages r ON m.reply_to_id = r.id
+            ORDER BY
+                m.created_at ASC
+        `;
+        const result = await pool.query(query);
         res.json(result.rows);
     } catch (err) {
         console.error('Error fetching messages:', err);
@@ -154,12 +173,15 @@ app.get('/api/messages', async (req, res) => {
 
 // API to post a new message
 app.post('/api/messages', async (req, res) => {
-    const { sender, content, timeString } = req.body;
+    const { sender, content, timeString, reply_to_id } = req.body; // Add reply_to_id
     // The 'is_seen' and 'seen_at' columns have defaults, so we don't need to specify them on insert.
     try {
+        // Update INSERT query to include reply_to_id
         const result = await pool.query(
-            'INSERT INTO messages (sender, content, time_string) VALUES ($1, $2, $3) RETURNING *',
-            [sender, JSON.stringify(content), timeString]
+            `INSERT INTO messages (sender, content, time_string, reply_to_id)
+             VALUES ($1, $2, $3, $4)
+             RETURNING *`,
+            [sender, JSON.stringify(content), timeString, reply_to_id || null]
         );
         const newMessage = result.rows[0];
 
@@ -167,12 +189,24 @@ app.post('/api/messages', async (req, res) => {
         newMessage.recipient = sender === 'raushan' ? 'nisha' : 'raushan';
 
         // Broadcast the new message to all connected WebSocket clients
-        wss.clients.forEach((client) => {
+        wss.clients.forEach(async (client) => {
             if (client.readyState === WebSocket.OPEN) {
+                let messageToSend = { ...newMessage };
+
+                // If it's a reply, fetch the replied-to message to include in the payload
+                if (messageToSend.reply_to_id) {
+                    const repliedToResult = await pool.query('SELECT id, sender, content FROM messages WHERE id = $1', [messageToSend.reply_to_id]);
+                    if (repliedToResult.rows.length > 0) {
+                        messageToSend.replied_to = repliedToResult.rows[0];
+                    }
+                }
+
+                // The client-side expects a 'new_message' event with the full payload
                 client.send(JSON.stringify({
                     type: 'new_message',
-                    payload: newMessage
+                    payload: messageToSend
                 }));
+
                 // Also notify clients to update their unread counts
                 client.send(JSON.stringify({
                     type: 'unread_count_update',

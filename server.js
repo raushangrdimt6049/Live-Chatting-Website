@@ -148,22 +148,10 @@ wss.on('connection', (ws) => {
 app.get('/api/messages', async (req, res) => {
     try {
         // Join messages with itself to get replied-to message details
-        const query = `
-            SELECT
-                m.*,
-                json_build_object(
-                    'id', r.id,
-                    'sender', r.sender,
-                    'content', r.content
-                ) AS replied_to
-            FROM
-                messages m
-            LEFT JOIN
-                messages r ON m.reply_to_id = r.id
-            ORDER BY
-                m.created_at ASC
-        `;
-        const result = await pool.query(query);
+        // The reply feature is not fully implemented in the DB, so we revert to a simpler query.
+        const result = await pool.query(
+            'SELECT * FROM messages ORDER BY created_at ASC'
+        );
         res.json(result.rows);
     } catch (err) {
         console.error('Error fetching messages:', err);
@@ -173,15 +161,15 @@ app.get('/api/messages', async (req, res) => {
 
 // API to post a new message
 app.post('/api/messages', async (req, res) => {
-    const { sender, content, timeString, reply_to_id } = req.body; // Add reply_to_id
+    const { sender, content, timeString } = req.body;
     // The 'is_seen' and 'seen_at' columns have defaults, so we don't need to specify them on insert.
     try {
-        // Update INSERT query to include reply_to_id
+        // Reverted INSERT query to not include reply_to_id
         const result = await pool.query(
-            `INSERT INTO messages (sender, content, time_string, reply_to_id)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO messages (sender, content, time_string)
+             VALUES ($1, $2, $3)
              RETURNING *`,
-            [sender, JSON.stringify(content), timeString, reply_to_id || null]
+            [sender, JSON.stringify(content), timeString]
         );
         const newMessage = result.rows[0];
 
@@ -191,20 +179,11 @@ app.post('/api/messages', async (req, res) => {
         // Broadcast the new message to all connected WebSocket clients
         wss.clients.forEach(async (client) => {
             if (client.readyState === WebSocket.OPEN) {
-                let messageToSend = { ...newMessage };
-
-                // If it's a reply, fetch the replied-to message to include in the payload
-                if (messageToSend.reply_to_id) {
-                    const repliedToResult = await pool.query('SELECT id, sender, content FROM messages WHERE id = $1', [messageToSend.reply_to_id]);
-                    if (repliedToResult.rows.length > 0) {
-                        messageToSend.replied_to = repliedToResult.rows[0];
-                    }
-                }
 
                 // The client-side expects a 'new_message' event with the full payload
                 client.send(JSON.stringify({
                     type: 'new_message',
-                    payload: messageToSend
+                    payload: newMessage
                 }));
 
                 // Also notify clients to update their unread counts

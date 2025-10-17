@@ -33,7 +33,8 @@ const createTable = async () => {
       time_string VARCHAR(50) NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       is_seen BOOLEAN DEFAULT FALSE,
-      seen_at TIMESTAMP WITH TIME ZONE
+      seen_at TIMESTAMP WITH TIME ZONE,
+      reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL
     );
   `;
   try {

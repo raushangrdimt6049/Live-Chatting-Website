@@ -25,7 +25,7 @@ pool.on('error', (err, client) => {
 });
 
 const createTable = async () => {
-  const queryText = `
+  const createTableQuery = `
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       sender VARCHAR(50) NOT NULL,
@@ -37,15 +37,28 @@ const createTable = async () => {
       reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL
     );
   `;
+
+  const addColumnQuery = `
+    ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL;
+  `;
+
   try {
     // Using pool.connect() is more robust for initial setup
     const client = await pool.connect();
     try {
-      await client.query(queryText);
+      // First, ensure the table exists
+      await client.query(createTableQuery);
+      console.log('"messages" table is ready or already exists.');
+
+      // Then, ensure the new column exists.
+      // This is a simple migration strategy.
+      await client.query(addColumnQuery);
+      console.log('"reply_to_id" column is ready or already exists.');
+
     } finally {
       client.release();
+      console.log('Database setup client released.');
     }
-    console.log('"messages" table is ready.');
   } catch (err) {
     let errorMessage = 'Error creating messages table. Please check your database connection credentials in .env.';
     if (err.code === 'ENOTFOUND') {

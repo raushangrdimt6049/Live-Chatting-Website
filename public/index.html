@@ -1418,7 +1418,6 @@
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
                         <button class="voice-chat-button" data-user="raushan" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="sound-alert-button" data-user="raushan" title="Send Sound Alert">🚨 Sound Alert</button>
-                        <button class="call-button" data-user="raushan" data-call-type="live-video" title="Live Video">📹 Live Video</button>
                         <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹 Video Call</button>
                         <button class="call-button" data-user="raushan" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
                         <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
@@ -1462,7 +1461,6 @@
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
                         <button class="voice-chat-button" data-user="nisha" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="sound-alert-button" data-user="nisha" title="Send Sound Alert">🚨 Sound Alert</button>
-                        <button class="call-button" data-user="nisha" data-call-type="live-video" title="Live Video">📹 Live Video</button>
                         <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹 Video Call</button>
                         <button class="call-button" data-user="nisha" data-call-type="audio" title="Audio Call">📞 Audio Call</button>
                         <button class="refresh-chat-button" title="Refresh Chat">🔄 Refresh</button>
@@ -1847,11 +1845,6 @@
 
                 callOfferData = data; // Store the offer
                 isCallInProgress = true;
-
-                // Automatically accept 'live-video' calls
-                if (data.callType === 'live-video') {
-                    acceptCall();
-                }
                 showCallModal('incoming', data.from, data.callType);
             };
 
@@ -1860,7 +1853,7 @@
 
                 try {
                     const constraints = {
-                        video: callOfferData.callType === 'video' || callOfferData.callType === 'live-video',
+                        video: callOfferData.callType === 'video',
                         audio: true
                     };
                     localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -2089,7 +2082,7 @@
                 callStatusTextHeaderEl.classList.remove('hidden');
                 callTimerEl.classList.add('hidden');
 
-                const isVideoCall = callType === 'video' || callType === 'live-video';
+                const isVideoCall = callType === 'video';
                 
                 // Add a class to the overlay for video-specific styling
                 callModal.classList.toggle('audio-active', !isVideoCall && state === 'active');
@@ -2112,7 +2105,7 @@
                 
                 if (state === 'incoming') {
                     // Incoming call state: Show avatar, "Incoming call...", and accept/decline buttons.
-                    callAvatarEl.textContent = otherUser.charAt(0); // This was correct
+                    callAvatarEl.textContent = otherUser.charAt(0);
                     callWithUserHeaderEl.textContent = ''; // Clear header text
                     callWithUserMainEl.textContent = `${otherUser}`;
                     callStatusTextMainEl.textContent = `Incoming ${callType} call...`;
@@ -2124,7 +2117,7 @@
                     activeCallActions.classList.remove('hidden');
 
                     // Set the header text based on the call type.
-                    const callActionText = isVideoCall ? (callType === 'live-video' ? "Starting Live Video with" : "Video Calling to") : "Audio Calling to";
+                    const callActionText = isVideoCall ? "Video Calling to" : "Audio Calling to"; // This was correct
                     callWithUserHeaderEl.textContent = `${callActionText} ${otherUser}`;
                     callStatusTextHeaderEl.textContent = ''; // Clear any previous status from the header
 
@@ -2156,7 +2149,7 @@
 
                     // For both active audio and video calls, start the timer.
                     // This block now handles the final UI state for an active call for BOTH users.
-                    callWithUserHeaderEl.textContent = isVideoCall ? (callType === 'live-video' ? `Live Video with ${otherUser}` : `Video Call With ${otherUser}`) : `Audio Call with ${otherUser}`;
+                    callWithUserHeaderEl.textContent = isVideoCall ? `Video Call With ${otherUser}` : `Audio Call with ${otherUser}`;
                     callStatusTextHeaderEl.textContent = ''; // Clear "Ringing..." or "Connected"
                     mainCallWithUser.textContent = ''; // Hide the centered name
                     mainCallStatus.textContent = ''; // Hide the centered status text

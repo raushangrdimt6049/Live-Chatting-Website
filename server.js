@@ -75,7 +75,7 @@ wss.on('connection', (ws) => {
 
         // --- WebRTC Signaling and General Message Forwarding ---
         const recipientUser = data.payload?.to;
-        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || data.type.startsWith('sound_alert') || ['ice-candidate', 'user-busy'].includes(data.type);
+        const isSignalingMessage = data.type.startsWith('call-') || data.type.startsWith('voice-chat-') || data.type.startsWith('live-video-') || data.type.startsWith('sound_alert') || ['ice-candidate', 'user-busy'].includes(data.type);
 
         // Handle messages that need to be relayed to a specific user
         // This includes all WebRTC signaling messages.

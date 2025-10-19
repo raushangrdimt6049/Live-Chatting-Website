@@ -1284,6 +1284,62 @@
             50% { background-color: rgba(255, 50, 50, 0.7); }
         }
 
+        /* --- Live Video Chat Modal --- */
+        .live-video-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            z-index: 4500; /* Below voice chat but above main call */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        .live-video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            padding: 80px 20px 120px 20px; /* Top padding for header, bottom for controls */
+        }
+
+        .live-video-container video {
+            width: 100%;
+            flex: 1; /* Allow videos to share space */
+            max-height: 45%; /* Limit height to fit two videos */
+            object-fit: cover;
+            border-radius: 20px; /* Curved rectangular */
+            background-color: #111;
+            border: 2px solid rgba(214, 51, 108, 0.5);
+        }
+
+        .live-video-container video.mirrored {
+            transform: scaleX(-1);
+        }
+
+        .live-video-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 30px;
+        }
 
     </style>
 </head>
@@ -1401,6 +1457,23 @@
         </div>
     </div>
 
+    <!-- Live Video Chat Modal -->
+    <div id="live-video-modal" class="live-video-modal-overlay hidden">
+        <div class="call-header">
+            <h2 id="live-video-header">Live Video Call</h2>
+        </div>
+        <div class="live-video-container">
+            <video id="live-video-remote" autoplay playsinline></video>
+            <video id="live-video-local" autoplay playsinline muted></video>
+        </div>
+        <div class="live-video-controls">
+            <button id="toggle-live-mic-btn" class="call-control-btn" title="Mute/Unmute Mic">🎤</button>
+            <button id="toggle-live-video-btn" class="call-control-btn" title="Turn Video Off/On">📹</button>
+            <button id="flip-live-video-btn" class="call-control-btn" title="Flip Camera">🔄</button>
+            <button id="end-live-video-btn" class="call-control-btn end-call" title="End Live Video">📞</button>
+        </div>
+    </div>
+
     <!-- Main container for the two chat boxes -->
     <div class="chat-app-container hidden" id="chat-app-container">
 
@@ -1416,6 +1489,7 @@
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="live-video-chat-button" data-user="raushan" title="Live Video Chat">🎥 Live Video</button>
                         <button class="voice-chat-button" data-user="raushan" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="sound-alert-button" data-user="raushan" title="Send Sound Alert">🚨 Sound Alert</button>
                         <button class="call-button" data-user="raushan" data-call-type="video" title="Video Call">📹 Video Call</button>
@@ -1459,6 +1533,7 @@
                 </div>
                 <div class="header-menu">
                     <button class="menu-toggle-button" title="Menu"><span></span><span></span><span></span></button>                    <div class="menu-dropdown"> <!-- Removed 'hidden' class, now controlled by 'visible' -->
+                        <button class="live-video-chat-button" data-user="nisha" title="Live Video Chat">🎥 Live Video</button>
                         <button class="voice-chat-button" data-user="nisha" title="Start Voice Chat">🎙️ Voice Chat</button>
                         <button class="sound-alert-button" data-user="nisha" title="Send Sound Alert">🚨 Sound Alert</button>
                         <button class="call-button" data-user="nisha" data-call-type="video" title="Video Call">📹 Video Call</button>
@@ -1589,6 +1664,20 @@
             const soundAlertMessage = document.getElementById('sound-alert-message');
             const stopAlertBtn = document.getElementById('stop-alert-btn');
             const alarmSound = new Audio('https://assets.mixkit.co/sfx/preview/mixkit-police-siren-us-1643.mp3'); // Switched to a more reliable source
+            
+            // Live Video Chat elements
+            const liveVideoModal = document.getElementById('live-video-modal');
+            const liveVideoButtons = document.querySelectorAll('.live-video-chat-button');
+            const liveVideoHeader = document.getElementById('live-video-header');
+            const liveVideoLocal = document.getElementById('live-video-local');
+            const liveVideoRemote = document.getElementById('live-video-remote');
+            const endLiveVideoBtn = document.getElementById('end-live-video-btn');
+            const toggleLiveMicBtn = document.getElementById('toggle-live-mic-btn');
+            const toggleLiveVideoBtn = document.getElementById('toggle-live-video-btn');
+            const flipLiveVideoBtn = document.getElementById('flip-live-video-btn');
+            let liveVideoPeerConnection;
+            let liveStream;
+            let currentLiveFacingMode = 'user';
 
             const USERS = {
                 "Raushan_143": "asdf@1234",
@@ -1618,6 +1707,7 @@
             let callStartTime = null; // To track the start time of an active call
             let reconnectionTimer = null;
             const RECONNECTION_TIMEOUT = 3000; // 30 seconds to reconnect
+            
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
                 // It's recommended to use your own TURN server for production applications
@@ -1766,17 +1856,127 @@
                 socket.send(JSON.stringify({ type: 'voice-chat-end', payload: { to: recipient } }));
             };
             function formatSeenTime(isoString) {
-                if (!isoString) return '';
-                const date = new Date(isoString);
-                // HH:MM:SS format
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+                 if (!isoString) return '';
+                 const date = new Date(isoString);
+                 // HH:MM:SS format
+                 return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            }
+
+            // --- Live Video Chat Logic ---
+            const startLiveVideo = async (recipient) => {
+                if (isCallInProgress || voiceChatPeerConnection || liveVideoPeerConnection) {
+                    alert("You are already in a call.");
+                    return;
+                }
+                try {
+                    currentLiveFacingMode = 'user';
+                    liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentLiveFacingMode }, audio: true });
+                    liveVideoLocal.srcObject = liveStream;
+                    liveVideoLocal.classList.add('mirrored');
+
+                    liveVideoPeerConnection = new RTCPeerConnection(iceServers);
+                    liveStream.getTracks().forEach(track => liveVideoPeerConnection.addTrack(track, liveStream));
+
+                    liveVideoPeerConnection.ontrack = event => { liveVideoRemote.srcObject = event.streams[0]; };
+                    liveVideoPeerConnection.onicecandidate = event => {
+                        if (event.candidate) {
+                            socket.send(JSON.stringify({ type: 'live-video-ice-candidate', payload: { to: recipient, candidate: event.candidate } }));
+                        }
+                    };
+
+                    const offer = await liveVideoPeerConnection.createOffer();
+                    await liveVideoPeerConnection.setLocalDescription(offer);
+
+                    socket.send(JSON.stringify({ type: 'live-video-offer', payload: { from: activeUser, to: recipient, offer: offer } }));
+
+                    liveVideoHeader.textContent = `Calling ${recipient}...`;
+                    liveVideoModal.classList.remove('hidden');
+                } catch (err) {
+                    console.error("Error starting live video:", err);
+                    alert("Could not start live video. Please check camera permissions.");
+                    endLiveVideo(true, recipient);
+                }
+            };
+
+            const handleLiveVideoOffer = async (data) => {
+                if (isCallInProgress || voiceChatPeerConnection || liveVideoPeerConnection) return;
+
+                try {
+                    currentLiveFacingMode = 'user';
+                    liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentLiveFacingMode }, audio: true });
+                    liveVideoLocal.srcObject = liveStream;
+                    liveVideoLocal.classList.add('mirrored');
+
+                    liveVideoPeerConnection = new RTCPeerConnection(iceServers);
+                    liveStream.getTracks().forEach(track => liveVideoPeerConnection.addTrack(track, liveStream));
+
+                    liveVideoPeerConnection.ontrack = event => { liveVideoRemote.srcObject = event.streams[0]; };
+                    liveVideoPeerConnection.onicecandidate = event => {
+                        if (event.candidate) {
+                            socket.send(JSON.stringify({ type: 'live-video-ice-candidate', payload: { to: data.from, candidate: event.candidate } }));
+                        }
+                    };
+
+                    await liveVideoPeerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    const answer = await liveVideoPeerConnection.createAnswer();
+                    await liveVideoPeerConnection.setLocalDescription(answer);
+
+                    socket.send(JSON.stringify({ type: 'live-video-answer', payload: { from: activeUser, to: data.from, answer: answer } }));
+
+                    liveVideoHeader.textContent = `Live Video with ${data.from}`;
+                    liveVideoModal.classList.remove('hidden');
+                } catch (err) {
+                    console.error("Error handling live video offer:", err);
+                    endLiveVideo(true, data.from);
+                }
+            };
+
+            const handleLiveVideoAnswer = async (data) => {
+                if (liveVideoPeerConnection) {
+                    await liveVideoPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    liveVideoHeader.textContent = `Live Video with ${data.from}`;
+                }
+            };
+
+            const handleLiveVideoICECandidate = (data) => {
+                if (liveVideoPeerConnection) {
+                    liveVideoPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => console.error("Error adding live video ICE candidate", e));
+                }
+            };
+
+            const endLiveVideo = (isInitiator, recipient) => {
+                if (liveStream) liveStream.getTracks().forEach(track => track.stop());
+                if (liveVideoPeerConnection) liveVideoPeerConnection.close();
+                liveStream = null;
+                liveVideoPeerConnection = null;
+                liveVideoLocal.srcObject = null;
+                liveVideoRemote.srcObject = null;
+                liveVideoModal.classList.add('hidden');
+
+                if (isInitiator && socket && socket.readyState === WebSocket.OPEN) {
+                    const otherUser = recipient || (activeUser === 'raushan' ? 'nisha' : 'raushan');
+                    socket.send(JSON.stringify({ type: 'live-video-end', payload: { to: otherUser } }));
+                }
+            };
+
+            const flipLiveVideoCamera = async () => {
+                if (!liveStream || !liveVideoPeerConnection) return;
+                currentLiveFacingMode = currentLiveFacingMode === 'user' ? 'environment' : 'user';
+                const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentLiveFacingMode }, audio: true });
+                const newVideoTrack = newStream.getVideoTracks()[0];
+                const sender = liveVideoPeerConnection.getSenders().find(s => s.track.kind === 'video');
+                if (sender) await sender.replaceTrack(newVideoTrack);
+                liveStream.getTracks().forEach(track => track.stop());
+                liveStream = newStream;
+                liveVideoLocal.srcObject = liveStream;
+                liveVideoLocal.classList.toggle('mirrored', currentLiveFacingMode === 'user'); // This ensures the mirror effect is correct after flipping
             }
 
             // --- WebRTC Call Logic ---
 
             const startCall = async (callType, recipient) => {
-                if (isCallInProgress) {
-                    alert("A call is already in progress.");
+                if (isCallInProgress || voiceChatPeerConnection || liveVideoPeerConnection) {
+                    alert("You are already in a call.");
                     return;
                 }
 
@@ -1810,21 +2010,8 @@
                     // Set a timeout for the call to be answered
                     callAnswerTimeout = setTimeout(() => {
                         console.log("Call not answered within 10 seconds. Ending call and logging as missed.");
-                        
                         // 1. End the call UI for the caller and notify the recipient to stop ringing.
-                        endCall(true); 
-
-                        // 2. Create and send a "missed call" message.
-                        const missedCallMessageData = {
-                            sender: activeUser,
-                            recipient: recipient,
-                            content: {
-                                type: 'missed_call',
-                                callType: callType
-                            },
-                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        };
-                        fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(missedCallMessageData) });
+                        endCall(true);
 
                     }, 10000); // 10-second timeout
 
@@ -2442,6 +2629,19 @@
                         // --- Sound Alert ---
                         case 'sound_alert':
                             handleSoundAlert(eventData.payload.from);
+                            break;
+                        // --- Live Video Signaling ---
+                        case 'live-video-offer':
+                            handleLiveVideoOffer(eventData.payload);
+                            break;
+                        case 'live-video-answer':
+                            handleLiveVideoAnswer(eventData.payload);
+                            break;
+                        case 'live-video-ice-candidate':
+                            handleLiveVideoICECandidate(eventData.payload);
+                            break;
+                        case 'live-video-end':
+                            if (liveVideoPeerConnection) endLiveVideo(false);
                             break;
 
                             break;
@@ -3243,6 +3443,34 @@
                 });
             });
             endVoiceChatBtn.addEventListener('click', endVoiceChat);
+
+            // --- Live Video Chat Button Listeners ---
+            liveVideoButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const recipient = button.dataset.user === 'raushan' ? 'nisha' : 'raushan';
+                    startLiveVideo(recipient);
+                });
+            });
+            endLiveVideoBtn.addEventListener('click', () => {
+                const recipient = activeUser === 'raushan' ? 'nisha' : 'raushan';
+                endLiveVideo(true, recipient);
+            });
+            flipLiveVideoBtn.addEventListener('click', flipLiveVideoCamera);
+            toggleLiveMicBtn.addEventListener('click', () => {
+                const audioTrack = liveStream?.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    toggleLiveMicBtn.classList.toggle('active', !audioTrack.enabled);
+                }
+            });
+            toggleLiveVideoBtn.addEventListener('click', () => {
+                const videoTrack = liveStream?.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    toggleLiveVideoBtn.classList.toggle('active', !videoTrack.enabled);
+                    liveVideoLocal.style.visibility = videoTrack.enabled ? 'visible' : 'hidden';
+                }
+            });
 
             // --- Sound Alert Button Listeners ---
             soundAlertButtons.forEach(button => {

@@ -110,17 +110,14 @@
             color: #d6336c; /* A lovely pink color */
             text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
             display: flex;
-            justify-content: center; /* Center content */
+            justify-content: space-between; /* Align items to ends */
             align-items: center;
-            flex-wrap: wrap; /* Allow items to wrap to the next line */
-            gap: 10px 20px; /* Add row and column gap */
         }
 
         .user-info {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            flex-grow: 1; /* Allow it to take space */
+            align-items: flex-start; /* Align text to the left */
         }
 
         .status-indicator {
@@ -196,9 +193,7 @@
 
         /* --- Header Menu & Dropdown --- */
         .header-menu {
-            position: absolute;
-            top: 15px;
-            right: 15px;
+            position: relative; /* Changed from absolute */
         }
 
         .menu-toggle-button {

@@ -65,7 +65,7 @@
 
 @keyframes slide {
     0%, 30%, 100% {
-        background-image: url('https://i.pinimg.com/236x/f3/63/5c/f3635c7ae1d6779135957b8cccd6cdca.jpg'); /* Army */
+        background-image: url('https://i.pinimg.com/736x/43/22/17/43221748fb4c65699f6e55c485da3f2f.jpg'); /* Army */
         opacity: 1;
     }
     33%, 63% {
@@ -73,7 +73,7 @@
         opacity: 1;
     }
     66%, 97% {
-        background-image: url('https://w0.peakpx.com/wallpaper/385/554/HD-wallpaper-indian-air-force-abhinandhan-air-force-army-best-india-logo-modi-navy-soldiers-war.jpg'); /* Air Force */
+        background-image: url('https://i.pinimg.com/736x/c9/00/0a/c9000a208a964edaa1a128ed71befdea.jpg'); /* Air Force */
         opacity: 1;
     }
 }
@@ -155,6 +155,22 @@
         .chat-messages::-webkit-scrollbar-thumb {
             background: rgba(214, 51, 108, 0.4);
             border-radius: 3px;
+        }
+
+        /* --- Date Separator Styling --- */
+        .date-separator {
+            align-self: center;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 10px 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         .chat-input-area {
@@ -431,6 +447,16 @@
             font-size: 0.75rem;
             /* margin-top: 5px; */ /* No longer needed with flex */
             align-self: flex-end;
+        }
+
+        .message-datestamp {
+            font-size: 0.75rem;
+            margin-right: 5px; /* Space between date and time */
+            align-self: flex-end;
+        }
+
+        .message.sent .message-datestamp {
+            color: rgba(255, 255, 255, 0.8);
         }
 
         .message.sent .audio-duration {
@@ -720,6 +746,29 @@
             text-shadow: 0 0 10px rgba(255, 105, 180, 0.7), 0 0 20px rgba(255, 105, 180, 0.5);
             animation: pulseHeader 2.5s infinite ease-in-out;
             text-align: center;
+        }
+
+        /* --- Blinking Dot for Unread Messages --- */
+        .blinking-dot {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            animation: blink 1.2s infinite ease-in-out;
+        }
+
+        .blinking-dot.blue {
+            background-color: #3498db; /* Blue */
+            box-shadow: 0 0 10px #3498db;
+        }
+
+        .blinking-dot.green {
+            background-color: #2ecc71; /* Green */
+            box-shadow: 0 0 10px #2ecc71;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
         }
 
         @keyframes pulseHeader {
@@ -1351,7 +1400,11 @@
     <!-- Initial selection screen -->
     <div class="selection-container" id="selection-container">
         <div class="login-box" style="background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.18); padding: 40px;">
-            <h3 style="font-size: 2rem; color: rgb(12, 25, 212); text-shadow: 1px 1px 3px rgba(0,0,0,0.3); margin-bottom: 15px;">Welcome to NDA</h3>
+            <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 15px;">
+                <div class="blinking-dot blue hidden" id="raushan-unread-indicator"></div>
+                <h3 style="font-size: 2rem; color: rgb(12, 25, 212); text-shadow: 1px 1px 3px rgba(0,0,0,0.2); margin: 0 20px;">Welcome to NDA</h3>
+                <div class="blinking-dot green hidden" id="nisha-unread-indicator"></div>
+            </div>
             <img src="data:image/jpeg;base64,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" alt="NDA Logo" style="width: 100px; height: auto; margin-bottom: 20px;">
             <h3 style="color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.2); margin-bottom: 20px;">Admin Login</h3>
             <form id="admin-login-form">
@@ -1693,20 +1746,23 @@
             let initialStatusLoaded = false; // Flag to check if we've received initial statuses
             const messageElements = new Map(); // To map message ID to its DOM element
 
+            let lastMessageDateRaushan = null; // Stores 'YYYY-MM-DD' string for comparison
+            let lastMessageDateNisha = null;   // Stores 'YYYY-MM-DD' string for comparison
+
             // WebRTC state variables
             let peerConnection;
             let localStream;
             let isCallInProgress = false;
             let callOfferData = null;
-            let callRecipient = null; // New variable to track the outgoing call recipient
-            let outgoingCallType = null; // New variable to track the call type for the initiator
+            let callRecipient = null;
+            let outgoingCallType = null;
             let callTimerInterval = null;
             let voiceChatPeerConnection;
             let voiceChatStream;
             let callAnswerTimeout = null; // Timer for unanswered calls
             let callStartTime = null; // To track the start time of an active call
             let reconnectionTimer = null;
-            const RECONNECTION_TIMEOUT = 3000; // 30 seconds to reconnect
+            const RECONNECTION_TIMEOUT = 30000; // 30 seconds to reconnect
             
             let currentCallFacingMode = 'user'; // 'user' for front, 'environment' for back
             const iceServers = {
@@ -1715,6 +1771,14 @@
                     { urls: 'stun:stun.l.google.com:19302' } // Public STUN server
                 ]
             };
+            
+            // Helper to check if two Date objects represent the same day (local time)
+            const isSameDay = (d1, d2) => {
+                return d1.getFullYear() === d2.getFullYear() &&
+                       d1.getMonth() === d2.getMonth() &&
+                       d1.getDate() === d2.getDate();
+            };
+
             function formatSeenDate(isoString) {
                 const date = new Date(isoString);
                 const day = String(date.getDate()).padStart(2, '0');
@@ -2683,6 +2747,38 @@
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
                 const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
+                
+                const messageDateObj = new Date(id);
+                // Normalize to YYYY-MM-DD for consistent comparison across locales
+                const normalizedMessageDate = messageDateObj.getFullYear() + '-' + 
+                                              String(messageDateObj.getMonth() + 1).padStart(2, '0') + '-' + 
+                                              String(messageDateObj.getDate()).padStart(2, '0');
+
+                // --- Date Separator Logic ---
+                const createDateSeparator = (messageTimestampId) => {
+                    const separatorDiv = document.createElement('div');
+                    separatorDiv.className = 'date-separator';                    
+                    const msgDate = new Date(messageTimestampId); // The date of the message
+
+                    // Create robust 'today' and 'yesterday' dates set to midnight for accurate comparison
+                    const today = new Date(); 
+                    today.setHours(0, 0, 0, 0);
+                    const yesterday = new Date(today);
+                    yesterday.setDate(today.getDate() - 1);
+
+                    if (isSameDay(msgDate, today)) {
+                        separatorDiv.textContent = 'Today';
+                    } else if (isSameDay(msgDate, yesterday)) {
+                        separatorDiv.textContent = 'Yesterday';
+                    } else {
+                        separatorDiv.textContent = msgDate.toLocaleDateString('en-GB', {
+                            day: 'numeric', month: 'long', year: 'numeric'
+                        });
+                    }
+                    return separatorDiv;
+                };
+
+
 
                 // Function to create a message element with content and timestamp
                 const createMessageElement = (msgContent) => { // This is a local helper function
@@ -2845,10 +2941,22 @@
                     const metaRightDiv = document.createElement('div');
                     metaRightDiv.className = 'message-meta-right';
  
+                    const dateSpan = document.createElement('span');
+                    dateSpan.className = 'message-datestamp';
+                    // Use the message ID (which is the 'created_at' timestamp) to create the date.
+                    // The 'id' will be a valid timestamp for messages from the DB, or undefined for a new local message.
+                    // We only show the date if the ID is valid.
+                    if (id) {
+                        const messageDate = new Date(id);
+                        dateSpan.textContent = messageDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+                    }
+                    metaRightDiv.appendChild(dateSpan);
+
                     const timeSpan = document.createElement('span');
                     timeSpan.className = 'message-timestamp';
                     timeSpan.textContent = timeString;
                     metaRightDiv.appendChild(timeSpan);
+
                     metaDiv.appendChild(metaRightDiv);
 
                     return { main: metaDiv, right: metaRightDiv };
@@ -2945,6 +3053,18 @@
 
                     if (isSeen) handleSeen();
                 }
+
+                // Add date separators if needed
+                if (normalizedMessageDate !== lastMessageDateRaushan) {
+                    raushanMessages.appendChild(createDateSeparator(id));
+                    lastMessageDateRaushan = normalizedMessageDate;
+                }
+                if (normalizedMessageDate !== lastMessageDateNisha) {
+                    nishaMessages.appendChild(createDateSeparator(id));
+                    lastMessageDateNisha = normalizedMessageDate;
+                }
+
+
 
                 raushanMessages.appendChild(raushanMessage);
                 nishaMessages.appendChild(nishaMessage);
@@ -3548,23 +3668,21 @@
                 // Fetch for Raushan (messages sent by Nisha)
                 const raushanRes = await fetch('/api/messages/unread-count?user=raushan');
                 const raushanData = await raushanRes.json();
-                const raushanBadge = document.getElementById('raushan-notification');
+                const raushanUnreadIndicator = document.getElementById('raushan-unread-indicator');
                 if (raushanData.count > 0) {
-                    raushanBadge.textContent = raushanData.count;
-                    raushanBadge.classList.remove('hidden');
+                    raushanUnreadIndicator.classList.remove('hidden');
                 } else {
-                    raushanBadge.classList.add('hidden');
+                    raushanUnreadIndicator.classList.add('hidden');
                 }
 
                 // Fetch for Nisha (messages sent by Raushan)
                 const nishaRes = await fetch('/api/messages/unread-count?user=nisha');
                 const nishaData = await nishaRes.json();
-                const nishaBadge = document.getElementById('nisha-notification');
+                const nishaUnreadIndicator = document.getElementById('nisha-unread-indicator');
                 if (nishaData.count > 0) {
-                    nishaBadge.textContent = nishaData.count;
-                    nishaBadge.classList.remove('hidden');
+                    nishaUnreadIndicator.classList.remove('hidden');
                 } else {
-                    nishaBadge.classList.add('hidden');
+                    nishaUnreadIndicator.classList.add('hidden');
                 }
             }
 
@@ -3577,6 +3695,8 @@
                     
                     raushanMessages.innerHTML = ''; // Clear existing messages
                     nishaMessages.innerHTML = '';   // Also clear the other chat window
+                    lastMessageDateRaushan = null; // Reset last date
+                    lastMessageDateNisha = null;   // Reset last date
                     messageElements.clear();
                     messages.forEach(msg => renderMessage(msg));
                 } catch (error) {

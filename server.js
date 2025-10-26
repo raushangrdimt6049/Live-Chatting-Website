@@ -17,6 +17,26 @@ app.use(express.json({ limit: '10mb' })); // Increase limit for images
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- Secure Login API Endpoint ---
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+
+    // Securely load passwords from environment variables
+    const users = {
+        "Raushan_143": { password: process.env.RAUSHAN_PASSWORD, key: 'raushan' },
+        "Nisha_143": { password: process.env.NISHA_PASSWORD, key: 'nisha' }
+    };
+
+    const userCredentials = users[username];
+
+    // Check if user exists and password is correct
+    if (userCredentials && userCredentials.password === password) {
+        res.status(200).json({ success: true, user: userCredentials.key });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+});
+
 // WebSocket server setup
 const wss = new WebSocketServer({ server });
 

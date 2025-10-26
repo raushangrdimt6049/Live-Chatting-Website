@@ -77,10 +77,11 @@
         opacity: 1;
     }
 }
-        }
+        
 
         /* Hide the slideshow when the chat is active */
-        body.chat-active .background-slideshow {
+        body.chat-active .background-slideshow 
+        {
             display: none;
         }
 
@@ -346,10 +347,6 @@
             display: flex;
             flex-direction: column;
             animation: fadeInMessage 0.4s ease-out;
-        }
-
-        .message-content {
-            /* The actual text of the message */
         }
 
         .message-image {
@@ -844,13 +841,14 @@
             /* Make chat view full-screen on mobile */
             .chat-app-container {
                 width: 100%;
-                height: 100%;
+                height: 100vh; /* Use vh to fill the screen */
                 padding: 0;
                 display: block; /* Override the desktop flex layout */
             }
 
             .chat-box {
-                height: 100vh;
+                /* Use 100% to fill the parent container, which is now 100vh */
+                height: 100%;
                 max-height: none;
                 border-radius: 0;
                 border: none;
@@ -1726,11 +1724,6 @@
             let liveVideoPeerConnection;
             let liveStream;
             let currentLiveFacingMode = 'user';
-
-            const USERS = {
-                "Raushan_143": "asdf@1234",
-                "Nisha_143": "11041805143"
-            };
             let activeUserForAttachment = null;
 
             let raushanTypingTimer;
@@ -3496,16 +3489,16 @@
                 e.preventDefault();
                  const username = usernameInput.value;
                  const password = passwordInput.value;
-                 let userKey = null;
- 
-                 if (username === 'Raushan_143' && password === USERS.Raushan_143) {
-                     userKey = 'raushan';
-                 } else if (username === 'Nisha_143' && password === USERS.Nisha_143) {
-                     userKey = 'nisha';
-                 }
- 
-                 if (userKey) {
-                     activeUser = userKey; // Set the active user
+
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const { user } = await response.json();
+                    activeUser = user; // Set the active user
  
                      // Stop polling for unread messages since we're in the chat
                      clearInterval(unreadCountInterval);

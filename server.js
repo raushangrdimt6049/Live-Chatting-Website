@@ -4,6 +4,8 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const { pool, createTable } = require('./db'); // db.js will also be in the root
+const { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } = require('@simplewebauthn/server');
+const base64url = require('base64url');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +18,93 @@ app.use(express.json({ limit: '10mb' })); // Increase limit for images
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- WebAuthn (Fingerprint) In-Memory Storage (for demonstration) ---
+// In a real app, you would store this information in your database (the 'users' table).
+const webAuthnUsers = {}; // Store user handles and authenticators
+
+const rpName = 'Love Chatting';
+const rpID = 'localhost'; // This should be your domain in production
+const origin = `http://${rpID}:${PORT}`;
+
+function getNextUserID() {
+    // In a real app, this would come from your database's user ID sequence.
+    // For this demo, we'll generate a random one.
+    return base64url(Buffer.from(crypto.randomUUID(), 'utf8'));
+}
+
+function getUser(username) {
+    if (!webAuthnUsers[username]) {
+        webAuthnUsers[username] = {
+            id: getNextUserID(),
+            username: username,
+            currentChallenge: null, // To store the challenge for verification
+            authenticators: [],
+        };
+    }
+    return webAuthnUsers[username];
+}
+
+
+// --- WebAuthn Registration Endpoints ---
+
+app.post('/api/webauthn/register-options', async (req, res) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const user = getUser(username);
+
+    const options = await generateRegistrationOptions({
+        rpName,
+        rpID,
+        userID: user.id,
+        userName: user.username,
+        userDisplayName: user.username,
+        // Don't recommend existing authenticators
+        excludeCredentials: user.authenticators.map(auth => ({
+            id: auth.credentialID,
+            type: 'public-key',
+            transports: auth.transports,
+        })),
+    });
+
+    // Store the challenge for this user
+    user.currentChallenge = options.challenge;
+
+    res.json(options);
+});
+
+app.post('/api/webauthn/register-verify', async (req, res) => {
+    const { username, credential } = req.body;
+
+    if (!username || !credential) {
+        return res.status(400).json({ error: 'Username and credential are required' });
+    }
+
+    const user = getUser(username);
+
+    try {
+        const verification = await verifyRegistrationResponse({
+            response: credential,
+            expectedChallenge: user.currentChallenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID,
+        });
+
+        if (verification.verified && verification.registrationInfo) {
+            user.authenticators.push(verification.registrationInfo);
+            res.json({ verified: true });
+        } else {
+            res.status(400).json({ verified: false, error: 'Verification failed' });
+        }
+    } catch (error) {
+        console.error('WebAuthn verification error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // --- Secure Login API Endpoint ---
 app.post('/api/login', (req, res) => {

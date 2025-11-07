@@ -3810,21 +3810,7 @@
 
             // --- Unread Count Logic ---
             async function updateUnreadCounts() {
-                loginWithFingerprintBtn.addEventListener('click', async () => {
-                    const username = fingerprintUserInput.value.trim();
-                    if (!username) {
-                        fingerprintErrorMessage.textContent = 'Please enter a User ID.';
-                        return;
-                    }
-                    if (username !== 'Raushan_143' && username !== 'Nisha_143') {
-                        fingerprintErrorMessage.textContent = 'Please enter a valid User Name.';
-                        return;
-                    }
-                    fingerprintErrorMessage.innerHTML = '&nbsp;';
-                    fingerprintStatusMessage.textContent = 'Authenticating... Please scan your fingerprint.'; // This will be updated by the login logic
-                    // Placeholder for actual WebAuthn authentication call
-                    console.log(`Starting fingerprint login for user: ${username}`);
-                });
+                // This function is now separate from the login button listener
 
                 // Fetch for Raushan (messages sent by Nisha)
                 const raushanRes = await fetch('/api/messages/unread-count?user=raushan');
@@ -3846,6 +3832,85 @@
                     nishaUnreadIndicator.classList.add('hidden');
                 }
             }
+
+            loginWithFingerprintBtn.addEventListener('click', async () => {
+                const usernameInputVal = fingerprintUserInput.value.trim();
+                if (!usernameInputVal) {
+                    fingerprintErrorMessage.textContent = 'Please enter a User ID.';
+                    return;
+                }
+                if (usernameInputVal !== 'Raushan_143' && usernameInputVal !== 'Nisha_143') {
+                    fingerprintErrorMessage.textContent = 'Please enter a valid User Name.';
+                    return;
+                }
+                fingerprintErrorMessage.innerHTML = '&nbsp;';
+                fingerprintStatusMessage.textContent = 'Preparing authentication...';
+
+                try {
+                    // 1. Get login options from the server
+                    const respOptions = await fetch('/api/webauthn/login-options', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: usernameInputVal }),
+                    });
+                    const options = await respOptions.json();
+                    if (options.error) throw new Error(options.error);
+
+                    // 2. Convert challenge from base64url to ArrayBuffer
+                    options.challenge = bufferDecode(options.challenge);
+                    options.allowCredentials.forEach(cred => {
+                        cred.id = bufferDecode(cred.id);
+                    });
+
+                    fingerprintStatusMessage.textContent = 'Please scan your fingerprint...';
+
+                    // 3. Prompt the user to authenticate
+                    const credential = await navigator.credentials.get({ publicKey: options });
+
+                    // 4. Convert credential's ArrayBuffers to base64url for JSON transport
+                    const credentialForServer = {
+                        id: credential.id,
+                        rawId: bufferEncode(credential.rawId),
+                        type: credential.type,
+                        response: {
+                            clientDataJSON: bufferEncode(credential.response.clientDataJSON),
+                            authenticatorData: bufferEncode(credential.response.authenticatorData),
+                            signature: bufferEncode(credential.response.signature),
+                            userHandle: credential.response.userHandle ? bufferEncode(credential.response.userHandle) : null,
+                        },
+                    };
+
+                    // 5. Send the credential to the server for verification
+                    const respVerify = await fetch('/api/webauthn/login-verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: usernameInputVal, credential: credentialForServer }),
+                    });
+                    const verificationResult = await respVerify.json();
+
+                    if (verificationResult.verified) {
+                        fingerprintStatusMessage.textContent = 'Login successful!';
+                        
+                        // --- Perform Login Actions ---
+                        activeUser = usernameInputVal === 'Raushan_143' ? 'raushan' : 'nisha';
+                        clearInterval(unreadCountInterval);
+                        document.getElementById('raushan-chat').classList.toggle('hidden', activeUser !== 'raushan');
+                        document.getElementById('nisha-chat').classList.toggle('hidden', activeUser !== 'nisha');
+                        selectionContainer.classList.add('hidden');
+                        chatAppContainer.classList.remove('hidden');
+                        document.body.classList.add('chat-active');
+                        fingerprintModal.classList.add('hidden');
+                        setupWebSocket();
+
+                    } else {
+                        throw new Error(verificationResult.error || 'Authentication failed.');
+                    }
+                } catch (err) {
+                    console.error('Fingerprint login failed:', err);
+                    fingerprintStatusMessage.textContent = 'Login failed.';
+                    fingerprintErrorMessage.textContent = err.message;
+                }
+            });
 
             // --- Load and Render Initial Data ---
             async function initializeApp() {

@@ -30,7 +30,7 @@ const origin = `http://${rpID}:${PORT}`;
 function getNextUserID() {
     // In a real app, this would come from your database's user ID sequence.
     // For this demo, we'll generate a random one.
-    return base64url(Buffer.from(crypto.randomUUID(), 'utf8'));
+    return Buffer.from(crypto.randomUUID(), 'utf8');
 }
 
 function getUser(username) {
@@ -60,7 +60,7 @@ app.post('/api/webauthn/register-options', async (req, res) => {
     const options = await generateRegistrationOptions({
         rpName,
         rpID,
-        userID: user.id,
+        userID: user.id, // This is now a Buffer, which is correct
         userName: user.username,
         userDisplayName: user.username,
         // Don't recommend existing authenticators
@@ -103,6 +103,71 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
     } catch (error) {
         console.error('WebAuthn verification error:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// --- WebAuthn Login/Authentication Endpoints ---
+
+app.post('/api/webauthn/login-options', async (req, res) => {
+    const { username } = req.body;
+
+    if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const user = getUser(username);
+
+    if (!user || user.authenticators.length === 0) {
+        return res.status(400).json({ error: 'No authenticators registered for this user.' });
+    }
+
+    const options = await generateAuthenticationOptions({
+        rpID,
+        // Require that the user verify themselves
+        userVerification: 'preferred',
+        allowCredentials: user.authenticators.map(auth => ({
+            id: auth.credentialID,
+            type: 'public-key',
+            transports: auth.transports,
+        })),
+    });
+
+    // Store the challenge for this user
+    user.currentChallenge = options.challenge;
+
+    res.json(options);
+});
+
+app.post('/api/webauthn/login-verify', async (req, res) => {
+    const { username, credential } = req.body;
+
+    if (!username || !credential) {
+        return res.status(400).json({ error: 'Username and credential are required' });
+    }
+
+    const user = getUser(username);
+    const authenticator = user.authenticators.find(auth => auth.credentialID === credential.id);
+
+    // The `credential.id` from the client is base64url-encoded. The `authenticator.credentialID`
+    // on the server is a Buffer. We need to compare them correctly.
+    const authenticatorByRawId = user.authenticators.find(auth => auth.credentialID.equals(base64url.toBuffer(credential.rawId)));
+    if (!authenticatorByRawId) {
+        return res.status(400).json({ verified: false, error: 'Authenticator not recognized.' });
+    }
+
+    try {
+        const verification = await verifyAuthenticationResponse({
+            response: credential,
+            expectedChallenge: user.currentChallenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID,
+            authenticator: authenticatorByRawId,
+        });
+
+        res.json(verification); // Send the full verification result to the client
+    } catch (error) {
+        console.error('WebAuthn login verification error:', error);
+        res.status(500).json({ verified: false, error: error.message });
     }
 });
 

@@ -3698,57 +3698,8 @@
             };
 
             fingerprintLoginIcon.addEventListener('click', async () => {
-                // --- START: New Passwordless Flow ---
-                try {
-                    // 1. Get login options from the server (without a username)
-                    const respOptions = await fetch('/api/webauthn/login-options', { method: 'POST' });
-                    const options = await respOptions.json();
-                    if (options.error) throw new Error(options.error);
-
-                    // 2. Convert challenge and any allowed credentials from base64url
-                    options.challenge = bufferDecode(options.challenge);
-                    if (options.allowCredentials) {
-                        options.allowCredentials.forEach(cred => {
-                            cred.id = bufferDecode(cred.id);
-                        });
-                    }
-
-                    // 3. Prompt the user to authenticate. The browser will show a list of available credentials for this site.
-                    const credential = await navigator.credentials.get({ publicKey: options });
-
-                    // 4. Convert credential for server verification
-                    const credentialForServer = {
-                        id: credential.id,
-                        rawId: bufferEncode(credential.rawId),
-                        type: credential.type,
-                        response: {
-                            clientDataJSON: bufferEncode(credential.response.clientDataJSON),
-                            authenticatorData: bufferEncode(credential.response.authenticatorData),
-                            signature: bufferEncode(credential.response.signature),
-                            userHandle: credential.response.userHandle ? bufferEncode(credential.response.userHandle) : null,
-                        },
-                    };
-
-                    // 5. Send to server for verification. Note we don't send a username here.
-                    const respVerify = await fetch('/api/webauthn/login-verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: 'passwordless', credential: credentialForServer }), // 'username' is a placeholder
-                    });
-                    const verificationResult = await respVerify.json();
-
-                    if (verificationResult.verified && verificationResult.username) {
-                        // SUCCESS! The server identified the user. Now, log them in.
-                        performLogin(verificationResult.username);
-                    } else {
-                        throw new Error(verificationResult.error || 'Authentication failed.');
-                    }
-                } catch (err) {
-                    console.error('Passwordless login failed:', err);
-                    // If it fails (e.g., user has no credentials, or cancels), open the registration modal as a fallback.
-                    openRegistrationModal();
-                }
-                // --- END: New Passwordless Flow ---
+                // Directly open the registration modal as requested.
+                openRegistrationModal();
             });
 
             document.getElementById('fingerprint-switch-link').addEventListener('click', (e) => {
@@ -3887,8 +3838,11 @@
 
                     if (verificationResult.verified) {
                         fingerprintStatusMessage.textContent = 'Registration successful!';
-                        alert('Fingerprint scanned successfully. Click Register to save.');
-                        registerFingerprintBtn.disabled = false; // Enable the register button
+                        alert('Fingerprint registered successfully! You will now be returned to the login screen.');
+                        // Automatically close the modal and return the user to the main login page.
+                        fingerprintModal.classList.remove('visible');
+                        setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
+
                     } else {
                         throw new Error(verificationResult.error || 'Verification failed.');
                     }
@@ -3900,9 +3854,8 @@
             });
 
             registerFingerprintBtn.addEventListener('click', () => {
-                // This button is now just for confirming and closing the modal
-                fingerprintModal.classList.remove('visible');
-                setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
+                // This button is effectively deprecated by the new automatic flow, but we'll keep its closing logic as a fallback.
+                fingerprintModal.classList.add('hidden');
             });
 
             // --- Unread Count Logic ---

@@ -67,7 +67,7 @@ app.post('/api/webauthn/register-options', async (req, res) => {
         excludeCredentials: user.authenticators.map(auth => ({
             id: auth.credentialID,
             type: 'public-key',
-            transports: auth.transports,
+            transports: auth.transports || [], // Fallback to an empty array if transports is undefined
         })),
     });
 

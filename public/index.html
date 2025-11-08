@@ -1426,6 +1426,7 @@
             <h2 id="fingerprint-modal-title">Register Fingerprint</h2>
             <p id="fingerprint-modal-prompt">Enter User ID to save fingerprint for:</p>
             <input type="text" id="fingerprint-user-input" class="chat-input" placeholder="Enter User Name" required style="margin-bottom: 15px; width: 100%;">
+            <input type="password" id="fingerprint-password-input" class="chat-input" placeholder="Enter Your Account Password" required style="margin-bottom: 15px; width: 100%;">
             <p class="error-message" id="fingerprint-error-message">&nbsp;</p>
             <div id="fingerprint-animation-icon" style="margin: 10px 0 20px 0; cursor: pointer; filter: drop-shadow(0 0 8px #d6336c);" title="Tap to scan">
                 <img src="https://png.pngtree.com/element_our/20200702/ourmid/pngtree-flat-fingerprint-png-download-image_2286249.jpg" alt="Fingerprint Scan" style="width: 72px; height: 72px; border-radius: 50%;">
@@ -1748,6 +1749,7 @@
             const fingerprintModal = document.getElementById('fingerprint-modal');
             const fingerprintUserInput = document.getElementById('fingerprint-user-input');
             const registerFingerprintBtn = document.getElementById('register-fingerprint-btn');
+            const fingerprintPasswordInput = document.getElementById('fingerprint-password-input');
             const loginWithFingerprintBtn = document.getElementById('login-with-fingerprint-btn');
             const fingerprintStatusMessage = document.getElementById('fingerprint-status-message');
             const fingerprintErrorMessage = document.getElementById('fingerprint-error-message');
@@ -3518,41 +3520,31 @@
             imageZoomModal.addEventListener('click', (e) => { if (e.target === imageZoomModal) closeZoomModal(); });
 
             // --- Login and View Switching Logic ---
-            loginForm.addEventListener('submit', async (e) => {
+            loginForm.addEventListener('submit', async (e) => { // This is the main login form
                 e.preventDefault();
-                 const username = usernameInput.value;
-                 const password = passwordInput.value;
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
 
-                const response = await fetch('/api/login', {
+                try {
+                    const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
-                });
+                    });
 
-                if (response.ok) {
-                    const { user } = await response.json();
-                    activeUser = user; // Set the active user
- 
-                     // Stop polling for unread messages since we're in the chat
-                     clearInterval(unreadCountInterval);
- 
-                     // Show the correct chat box and hide the other one
-                     document.getElementById('raushan-chat').classList.toggle('hidden', activeUser !== 'raushan');
-                     document.getElementById('nisha-chat').classList.toggle('hidden', activeUser !== 'nisha');
- 
-                     // Hide login screen and show chat app
-                     selectionContainer.classList.add('hidden');
-                     chatAppContainer.classList.remove('hidden');
-                     document.body.classList.add('chat-active');
- 
-                     // Connect to WebSocket and initialize the app *after* connection
-                     setupWebSocket();
- 
-                 } else {
-                     errorMessage.textContent = 'Invalid User ID or Password!';
-                     loginForm.classList.add('shake');
-                     setTimeout(() => loginForm.classList.remove('shake'), 500);
-                 }
+                    if (response.ok) {
+                        const { user } = await response.json();
+                        performLogin(user === 'raushan' ? 'Raushan_143' : 'Nisha_143'); // Use the full username for performLogin
+                    } else {
+                        const errorData = await response.json();
+                        errorMessage.textContent = errorData.message || 'Invalid User ID or Password!';
+                        loginForm.classList.add('shake');
+                        setTimeout(() => loginForm.classList.remove('shake'), 500);
+                    }
+                } catch (error) {
+                    console.error('Login request failed:', error);
+                    errorMessage.textContent = 'Login failed. Please try again.';
+                }
             });
 
             switchUserButtons.forEach(button => {
@@ -3691,11 +3683,13 @@
                  document.getElementById('fingerprint-modal-prompt').textContent = 'Enter User ID to save fingerprint for:';
                  registerFingerprintBtn.classList.remove('hidden');
                  loginWithFingerprintBtn.classList.add('hidden');
+                 fingerprintPasswordInput.classList.remove('hidden');
                  document.getElementById('fingerprint-switch-link').textContent = 'Already registered? Login';
  
                  fingerprintErrorMessage.innerHTML = '&nbsp;'; // Clear previous errors
                  fingerprintUserInput.value = ''; // Clear input
                  fingerprintStatusMessage.textContent = 'Ready to scan...';
+                 fingerprintPasswordInput.value = '';
                  fingerprintModal.classList.remove('hidden');
                  fingerprintModal.classList.add('visible');
                  setTimeout(() => fingerprintUserInput.focus(), 100);
@@ -3760,10 +3754,12 @@
                 const isLoginView = loginWithFingerprintBtn.classList.contains('hidden');
                 if (isLoginView) {
                     // Switch to Login view
-                    document.getElementById('fingerprint-modal-title').textContent = 'Login with Fingerprint';
-                    document.getElementById('fingerprint-modal-prompt').textContent = 'Enter your User ID to login:';
+                    document.getElementById('fingerprint-modal-title').textContent = 'Login';
+                    document.getElementById('fingerprint-modal-prompt').textContent = 'Click below to login with your fingerprint.';
                     registerFingerprintBtn.classList.add('hidden');
                     loginWithFingerprintBtn.classList.remove('hidden');
+                    fingerprintUserInput.classList.add('hidden');
+                    fingerprintPasswordInput.classList.add('hidden');
                     e.target.textContent = 'Need to register?';
                 } else {
                     // Switch back to Register view
@@ -3771,6 +3767,8 @@
                     document.getElementById('fingerprint-modal-prompt').textContent = 'Enter User ID to save fingerprint for:';
                     registerFingerprintBtn.classList.remove('hidden');
                     loginWithFingerprintBtn.classList.add('hidden');
+                    fingerprintUserInput.classList.remove('hidden');
+                    fingerprintPasswordInput.classList.remove('hidden');
                     e.target.textContent = 'Already registered? Login';
                 }
                 fingerprintErrorMessage.innerHTML = '&nbsp;'; // Clear errors on switch
@@ -3813,8 +3811,14 @@
 
             registerFingerprintBtn.addEventListener('click', async () => {
                 const username = fingerprintUserInput.value.trim();
+                const password = fingerprintPasswordInput.value;
+
                 if (!username) {
                     fingerprintErrorMessage.textContent = 'Please enter a User ID.';
+                    return;
+                }
+                if (!password) {
+                    fingerprintErrorMessage.textContent = 'Please enter your password.';
                     return;
                 }
                 if (username !== 'Raushan_143' && username !== 'Nisha_143') {
@@ -3823,7 +3827,23 @@
                 }
 
                 fingerprintErrorMessage.innerHTML = '&nbsp;';
-                fingerprintStatusMessage.textContent = 'Preparing registration...';
+                fingerprintStatusMessage.textContent = 'Verifying password...';
+
+                // 1. Verify password first
+                const loginResponse = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!loginResponse.ok) {
+                    fingerprintErrorMessage.textContent = 'Invalid password. Please try again.';
+                    fingerprintStatusMessage.textContent = 'Ready to scan...';
+                    return;
+                }
+
+                // --- Password is correct, proceed with WebAuthn registration ---
+                fingerprintStatusMessage.textContent = 'Password verified. Preparing registration...';
 
                 try {
                     // 1. Get registration options from the server
@@ -3865,7 +3885,7 @@
 
                     if (verificationResult.verified) {
                         fingerprintStatusMessage.textContent = 'Registration successful!';
-                        alert('Fingerprint registered successfully! You can now use it to log in.');
+                        alert('Fingerprint added successfully.');
                     } else {
                         throw new Error(verificationResult.error || 'Verification failed.');
                     }
@@ -3901,7 +3921,12 @@
                 }
             }
 
-            loginWithFingerprintBtn.addEventListener('click', () => openRegistrationModal()); // This button is now effectively a fallback
+            loginWithFingerprintBtn.addEventListener('click', () => {
+                // When the login button inside the modal is clicked,
+                // close the modal and trigger the main passwordless login flow again.
+                fingerprintModal.classList.add('hidden');
+                fingerprintLoginIcon.click();
+            });
 
             // --- Load and Render Initial Data ---
             async function initializeApp() {

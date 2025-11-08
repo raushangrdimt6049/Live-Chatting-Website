@@ -1426,7 +1426,7 @@
             <h2 id="fingerprint-modal-title">Register Fingerprint</h2>
             <p id="fingerprint-modal-prompt">Enter User ID to save fingerprint for:</p>
             <input type="text" id="fingerprint-user-input" class="chat-input" placeholder="Enter User Name" required style="margin-bottom: 15px; width: 100%;">
-            <input type="password" id="fingerprint-password-input" class="chat-input" placeholder="Enter Your Account Password" required style="margin-bottom: 15px; width: 100%;">
+            <input type="password" id="fingerprint-password-input" class="chat-input" placeholder="Enter Account Password" required style="margin-bottom: 15px; width: 100%;">
             <p class="error-message" id="fingerprint-error-message">&nbsp;</p>
             <div id="fingerprint-animation-icon" style="margin: 10px 0 20px 0; cursor: pointer; filter: drop-shadow(0 0 8px #d6336c);" title="Tap to scan">
                 <img src="https://png.pngtree.com/element_our/20200702/ourmid/pngtree-flat-fingerprint-png-download-image_2286249.jpg" alt="Fingerprint Scan" style="width: 72px; height: 72px; border-radius: 50%;">
@@ -1749,6 +1749,7 @@
             const fingerprintModal = document.getElementById('fingerprint-modal');
             const fingerprintUserInput = document.getElementById('fingerprint-user-input');
             const registerFingerprintBtn = document.getElementById('register-fingerprint-btn');
+            const fingerprintAnimationIcon = document.getElementById('fingerprint-animation-icon');
             const fingerprintPasswordInput = document.getElementById('fingerprint-password-input');
             const loginWithFingerprintBtn = document.getElementById('login-with-fingerprint-btn');
             const fingerprintStatusMessage = document.getElementById('fingerprint-status-message');
@@ -3689,6 +3690,7 @@
                  fingerprintErrorMessage.innerHTML = '&nbsp;'; // Clear previous errors
                  fingerprintUserInput.value = ''; // Clear input
                  fingerprintStatusMessage.textContent = 'Ready to scan...';
+                 registerFingerprintBtn.disabled = true; // Disable button initially
                  fingerprintPasswordInput.value = '';
                  fingerprintModal.classList.remove('hidden');
                  fingerprintModal.classList.add('visible');
@@ -3809,7 +3811,7 @@
                     .replace(/=/g, '');
             }
 
-            registerFingerprintBtn.addEventListener('click', async () => {
+            fingerprintAnimationIcon.addEventListener('click', async () => {
                 const username = fingerprintUserInput.value.trim();
                 const password = fingerprintPasswordInput.value;
 
@@ -3885,7 +3887,8 @@
 
                     if (verificationResult.verified) {
                         fingerprintStatusMessage.textContent = 'Registration successful!';
-                        alert('Fingerprint added successfully.');
+                        alert('Fingerprint scanned successfully. Click Register to save.');
+                        registerFingerprintBtn.disabled = false; // Enable the register button
                     } else {
                         throw new Error(verificationResult.error || 'Verification failed.');
                     }
@@ -3894,6 +3897,12 @@
                     fingerprintStatusMessage.textContent = 'Registration failed.';
                     fingerprintErrorMessage.textContent = err.message;
                 }
+            });
+
+            registerFingerprintBtn.addEventListener('click', () => {
+                // This button is now just for confirming and closing the modal
+                fingerprintModal.classList.remove('visible');
+                setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
             });
 
             // --- Unread Count Logic ---

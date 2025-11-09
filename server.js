@@ -26,9 +26,16 @@ const webAuthnUsers = {}; // Store user handles and authenticators
 const rpName = 'Love Chatting';
 // IMPORTANT: For mobile testing, change 'localhost' to your computer's local IP address.
 // Find it by running 'ipconfig' in the command prompt.
-// In production, this MUST be your public domain name.
-const rpID = '192.168.193.97'; // <-- ⚠️ CHANGE THIS TO YOUR ACTUAL IP ADDRESS
-const origin = `http://${rpID}:${PORT}`; // The origin must match the rpID
+const DEV_IP_ADDRESS = ''; // <-- ⚠️ For mobile testing, put your IP here (e.g., '192.168.1.100'). Leave blank for localhost.
+
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+// Dynamically set the rpID. Use 'localhost' for local development unless an IP is specified.
+// This is crucial for WebAuthn, which requires the rpID to match the browser's domain.
+const rpID = isDevelopment && DEV_IP_ADDRESS ? DEV_IP_ADDRESS : 'localhost';
+
+// The origin must match the rpID. Use http for local development.
+const origin = `http://${rpID}:${PORT}`;
 
 function getNextUserID() {
     // In a real app, this would come from your database's user ID sequence.

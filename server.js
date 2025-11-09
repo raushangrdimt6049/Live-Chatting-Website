@@ -14,7 +14,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON bodies
-app.use(express.json({ limit: '10mb' })); // Increase limit for images
+app.use(express.json({ limit: '50mb' })); // Increase limit for images
 
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
@@ -24,8 +24,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 const webAuthnUsers = {}; // Store user handles and authenticators
 
 const rpName = 'Love Chatting';
-const rpID = 'localhost'; // This should be your domain in production
-const origin = `http://${rpID}:${PORT}`;
+// IMPORTANT: For mobile testing, change 'localhost' to your computer's local IP address.
+// Find it by running 'ipconfig' in the command prompt.
+// In production, this MUST be your public domain name.
+const rpID = '192.168.193.97'; // <-- ⚠️ CHANGE THIS TO YOUR ACTUAL IP ADDRESS
+const origin = `http://${rpID}:${PORT}`; // The origin must match the rpID
 
 function getNextUserID() {
     // In a real app, this would come from your database's user ID sequence.

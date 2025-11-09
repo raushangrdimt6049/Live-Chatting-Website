@@ -3697,6 +3697,12 @@
             };
 
             fingerprintLoginIcon.addEventListener('click', async () => {
+                // WebAuthn requires a secure context (HTTPS or localhost)
+                if (!window.isSecureContext) {
+                    alert('Fingerprint login is not available on insecure connections. Please use HTTPS or localhost.');
+                    return;
+                }
+
                 // This is the new logic for passwordless login
                 errorMessage.innerHTML = '&nbsp;'; // Clear any previous errors on the main login form
 
@@ -3789,6 +3795,12 @@
             }
 
             fingerprintAnimationIcon.addEventListener('click', async () => {
+                // WebAuthn requires a secure context (HTTPS or localhost)
+                if (!window.isSecureContext) {
+                    alert('Fingerprint registration is not available on insecure connections. Please use HTTPS or localhost.');
+                    return;
+                }
+
                 const username = fingerprintUserInput.value.trim();
                 const password = fingerprintPasswordInput.value;
 

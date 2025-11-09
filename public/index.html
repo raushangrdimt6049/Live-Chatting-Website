@@ -1435,7 +1435,6 @@
             <div class="fingerprint-actions" style="display: flex; flex-direction: column; align-items: center; gap: 15px; margin-top: 10px;">
                 <button id="register-fingerprint-btn" class="send-icon-button" style="background: #d6336c; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Register</button>
                 <button id="login-with-fingerprint-btn" class="send-icon-button hidden" style="background: #20c997; color: white; border-radius: 20px; padding: 10px 20px; font-size: 1rem; font-weight: 600;">Login</button>
-                <a href="#" id="fingerprint-switch-link" style="font-size: 0.9rem; color: #007bff; text-decoration: none; margin-top: 5px;">Already registered? Login</a>
             </div>
         </div>
     </div>
@@ -1753,6 +1752,7 @@
             const fingerprintPasswordInput = document.getElementById('fingerprint-password-input');
             const loginWithFingerprintBtn = document.getElementById('login-with-fingerprint-btn');
             const fingerprintStatusMessage = document.getElementById('fingerprint-status-message');
+            let webAuthnCredential = null; // Variable to hold the created credential
             const fingerprintErrorMessage = document.getElementById('fingerprint-error-message');
             const toggleLiveMicBtn = document.getElementById('toggle-live-mic-btn');
             const toggleLiveVideoBtn = document.getElementById('toggle-live-video-btn');
@@ -3681,63 +3681,89 @@
             const openRegistrationModal = () => {
                  // Reset to default (register) view every time it's opened
                  document.getElementById('fingerprint-modal-title').textContent = 'Register Fingerprint';
-                 document.getElementById('fingerprint-modal-prompt').textContent = 'Enter User ID to save fingerprint for:';
+                 document.getElementById('fingerprint-modal-prompt').textContent = 'Enter User ID and password to register:';
                  registerFingerprintBtn.classList.remove('hidden');
                  loginWithFingerprintBtn.classList.add('hidden');
                  fingerprintPasswordInput.classList.remove('hidden');
-                 document.getElementById('fingerprint-switch-link').textContent = 'Already registered? Login';
  
                  fingerprintErrorMessage.innerHTML = '&nbsp;'; // Clear previous errors
-                 fingerprintUserInput.value = ''; // Clear input
-                 fingerprintStatusMessage.textContent = 'Ready to scan...';
-                 registerFingerprintBtn.disabled = true; // Disable button initially
-                 fingerprintPasswordInput.value = '';
-                 fingerprintModal.classList.remove('hidden');
-                 fingerprintModal.classList.add('visible');
-                 setTimeout(() => fingerprintUserInput.focus(), 100);
+                fingerprintUserInput.value = ''; // Clear input
+                fingerprintPasswordInput.value = '';
+                registerFingerprintBtn.disabled = true; // Disable register button initially
+                fingerprintStatusMessage.textContent = 'Ready to scan...';
+                fingerprintModal.classList.remove('hidden');
+                fingerprintModal.classList.add('visible');
+                setTimeout(() => fingerprintUserInput.focus(), 100);
             };
 
             fingerprintLoginIcon.addEventListener('click', async () => {
-                // Directly open the registration modal as requested.
-                openRegistrationModal();
-            });
+                // This is the new logic for passwordless login
+                errorMessage.innerHTML = '&nbsp;'; // Clear any previous errors on the main login form
 
-            document.getElementById('fingerprint-switch-link').addEventListener('click', (e) => {
-                e.preventDefault();
-                const isLoginView = loginWithFingerprintBtn.classList.contains('hidden');
-                if (isLoginView) {
-                    // Switch to Login view
-                    document.getElementById('fingerprint-modal-title').textContent = 'Login';
-                    document.getElementById('fingerprint-modal-prompt').textContent = 'Click below to login with your fingerprint.';
-                    registerFingerprintBtn.classList.add('hidden');
-                    loginWithFingerprintBtn.classList.remove('hidden');
-                    fingerprintUserInput.classList.add('hidden');
-                    fingerprintPasswordInput.classList.add('hidden');
-                    e.target.textContent = 'Need to register?';
-                } else {
-                    // Switch back to Register view
-                    document.getElementById('fingerprint-modal-title').textContent = 'Register Fingerprint';
-                    document.getElementById('fingerprint-modal-prompt').textContent = 'Enter User ID to save fingerprint for:';
-                    registerFingerprintBtn.classList.remove('hidden');
-                    loginWithFingerprintBtn.classList.add('hidden');
-                    fingerprintUserInput.classList.remove('hidden');
-                    fingerprintPasswordInput.classList.remove('hidden');
-                    e.target.textContent = 'Already registered? Login';
+                try {
+                    // 1. Get login options from the server. For passwordless, no username is needed here.
+                    const respOptions = await fetch('/api/webauthn/login-options', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                    });
+
+                    let options = await respOptions.json();
+                    if (options.error) throw new Error(options.error);
+
+                    // 2. Convert challenge from base64url to ArrayBuffer
+                    options.challenge = bufferDecode(options.challenge);
+
+                    // 3. Prompt the user to authenticate with their fingerprint/passkey
+                    const credential = await navigator.credentials.get({ publicKey: options });
+
+                    // 4. Convert credential's ArrayBuffers to base64url for JSON transport
+                    const credentialForServer = {
+                        id: credential.id,
+                        rawId: bufferEncode(credential.rawId),
+                        type: credential.type,
+                        response: {
+                            clientDataJSON: bufferEncode(credential.response.clientDataJSON),
+                            authenticatorData: bufferEncode(credential.response.authenticatorData),
+                            signature: bufferEncode(credential.response.signature),
+                            userHandle: credential.response.userHandle ? bufferEncode(credential.response.userHandle) : null,
+                        },
+                    };
+
+                    // 5. Send the credential to the server for verification
+                    const respVerify = await fetch('/api/webauthn/login-verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: 'any', credential: credentialForServer }), // Username is derived on server
+                    });
+                    const verificationResult = await respVerify.json();
+
+                    if (verificationResult.verified) {
+                        performLogin(verificationResult.username); // Login with the username returned from the server
+                    } else {
+                        throw new Error(verificationResult.error || 'Fingerprint verification failed.');
+                    }
+                } catch (err) {
+                    // If the login fails, it's likely because no credential is registered yet.
+                    // The browser might throw a "NotAllowedError" if the user cancels or has no passkeys.
+                    // In either case, the best user experience is to guide them to registration.
+                    console.log('Fingerprint login failed, opening registration modal as a fallback.', err);
+                    // Instead of showing an error, open the registration modal.
+                    openRegistrationModal();
                 }
-                fingerprintErrorMessage.innerHTML = '&nbsp;'; // Clear errors on switch
             });
 
+            const closeFingerprintModal = () => {
+                fingerprintModal.classList.remove('visible');
+                setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
+                fingerprintErrorMessage.innerHTML = '&nbsp;';
+            };
             fingerprintModal.addEventListener('click', (e) => {
-                if (e.target === fingerprintModal) {
-                    fingerprintModal.classList.remove('visible');
-                    setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
-                    fingerprintErrorMessage.innerHTML = '&nbsp;';
-                }
+                if (e.target === fingerprintModal) closeFingerprintModal();
             });
 
             // Helper function to perform login actions, now reusable
             const performLogin = (username) => {
-                activeUser = username === 'Raushan_143' ? 'raushan' : 'nisha';
+                activeUser = username.toLowerCase().includes('raushan') ? 'raushan' : 'nisha';
                 clearInterval(unreadCountInterval);
                 document.getElementById('raushan-chat').classList.toggle('hidden', activeUser !== 'raushan');
                 document.getElementById('nisha-chat').classList.toggle('hidden', activeUser !== 'nisha');
@@ -3815,7 +3841,7 @@
                     fingerprintStatusMessage.textContent = 'Please scan your fingerprint...';
 
                     // 3. Prompt the user to create a new credential
-                    const credential = await navigator.credentials.create({ publicKey: options });
+                    webAuthnCredential = await navigator.credentials.create({ publicKey: options });
 
                     // 4. Convert credential's ArrayBuffers to base64url for JSON transport
                     const credentialForServer = {
@@ -3825,6 +3851,39 @@
                         response: {
                             clientDataJSON: bufferEncode(credential.response.clientDataJSON),
                             attestationObject: bufferEncode(credential.response.attestationObject),
+                        },
+                    };
+
+                    // At this point, the credential is created on the client but not yet verified by the server.
+                    fingerprintStatusMessage.textContent = 'Fingerprint successfully scanned!';
+                    registerFingerprintBtn.disabled = false; // Enable the register button
+                    fingerprintErrorMessage.innerHTML = '&nbsp;';
+
+                } catch (err) {
+                    console.error('Fingerprint scanning failed:', err);
+                    fingerprintStatusMessage.textContent = 'Scan failed.';
+                    fingerprintErrorMessage.textContent = (err.name === 'NotAllowedError' || err.message.includes('AbortError')) ? 'Scan cancelled.' : err.message;
+                    registerFingerprintBtn.disabled = true; // Keep it disabled on failure
+                }
+            });
+
+            registerFingerprintBtn.addEventListener('click', async () => {
+                const username = fingerprintUserInput.value.trim();
+
+                if (!webAuthnCredential) {
+                    fingerprintErrorMessage.textContent = 'Please scan your fingerprint first by tapping the icon.';
+                    return;
+                }
+
+                try {
+                    // Convert the stored credential's ArrayBuffers to base64url for JSON transport
+                    const credentialForServer = {
+                        id: webAuthnCredential.id,
+                        rawId: bufferEncode(webAuthnCredential.rawId),
+                        type: webAuthnCredential.type,
+                        response: {
+                            clientDataJSON: bufferEncode(webAuthnCredential.response.clientDataJSON),
+                            attestationObject: bufferEncode(webAuthnCredential.response.attestationObject),
                         },
                     };
 
@@ -3839,23 +3898,20 @@
                     if (verificationResult.verified) {
                         fingerprintStatusMessage.textContent = 'Registration successful!';
                         alert('Fingerprint registered successfully! You will now be returned to the login screen.');
+                        webAuthnCredential = null; // Clear the stored credential
+                        registerFingerprintBtn.disabled = true; // Disable button again
                         // Automatically close the modal and return the user to the main login page.
-                        fingerprintModal.classList.remove('visible');
-                        setTimeout(() => fingerprintModal.classList.add('hidden'), 300);
+                        closeFingerprintModal();
 
                     } else {
                         throw new Error(verificationResult.error || 'Verification failed.');
                     }
                 } catch (err) {
-                    console.error('Fingerprint registration failed:', err);
+                    console.error('Final fingerprint registration step failed:', err);
                     fingerprintStatusMessage.textContent = 'Registration failed.';
-                    fingerprintErrorMessage.textContent = err.message;
+                    fingerprintErrorMessage.textContent = err.message.includes('AbortError') ? 'Registration cancelled.' : err.message;
+                    fingerprintErrorMessage.textContent = (err.name === 'NotAllowedError' || err.message.includes('AbortError')) ? 'Registration cancelled.' : err.message;
                 }
-            });
-
-            registerFingerprintBtn.addEventListener('click', () => {
-                // This button is effectively deprecated by the new automatic flow, but we'll keep its closing logic as a fallback.
-                fingerprintModal.classList.add('hidden');
             });
 
             // --- Unread Count Logic ---

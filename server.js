@@ -62,7 +62,8 @@ app.post('/api/webauthn/register-options', async (req, res) => {
         rpID,
         userID: user.id, // This is now a Buffer, which is correct
         userName: user.username,
-        userDisplayName: user.username,
+        // Use a friendlier display name for the passkey prompt (e.g., "Raushan" instead of "Raushan_143")
+        userDisplayName: user.username.split('_')[0],
         // Don't recommend existing authenticators
         excludeCredentials: user.authenticators.map(auth => ({
             id: auth.credentialID,
@@ -95,7 +96,14 @@ app.post('/api/webauthn/register-verify', async (req, res) => {
         });
 
         if (verification.verified && verification.registrationInfo) {
-            user.authenticators.push(verification.registrationInfo);
+            const { registrationInfo } = verification;
+            const newAuthenticator = {
+                credentialID: registrationInfo.credentialID,
+                publicKey: registrationInfo.credentialPublicKey,
+                counter: registrationInfo.counter,
+                transports: registrationInfo.transports,
+            };
+            user.authenticators.push(newAuthenticator);
             res.json({ verified: true });
         } else {
             res.status(400).json({ verified: false, error: 'Verification failed' });
@@ -143,7 +151,8 @@ app.post('/api/webauthn/login-verify', async (req, res) => {
 
     for (const usernameKey in webAuthnUsers) {
         const potentialUser = webAuthnUsers[usernameKey];
-        const foundAuth = potentialUser.authenticators.find(auth => auth.credentialID.equals(credentialIDBuffer));
+        // Add a check to ensure auth.credentialID is not undefined before calling .equals()
+        const foundAuth = potentialUser.authenticators.find(auth => auth && auth.credentialID && auth.credentialID.equals(credentialIDBuffer));
         if (foundAuth) {
             user = potentialUser;
             authenticator = foundAuth;

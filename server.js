@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const jwt = require('jsonwebtoken'); // Import jsonwebtoken
 const { pool, createTable } = require('./db'); // db.js will also be in the root
 
 const app = express();
@@ -31,9 +32,15 @@ app.post('/api/login', (req, res) => {
 
     // Check if user exists and password is correct
     if (userCredentials && userCredentials.password === password) {
-        res.status(200).json({ success: true, user: userCredentials.key });
+        // Sign a JWT token
+        const token = jwt.sign(
+            { username: username, userKey: userCredentials.key },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' } // Token expires in 24 hours
+        );
+        res.status(200).json({ success: true, user: userCredentials.key, token: token });
     } else {
-        res.status(401).json({ success: false, message: 'Invalid credentials' });
+        res.status(401).json({ success: false, message: 'Invalid credentials', token: null });
     }
 });
 

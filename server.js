@@ -6,6 +6,12 @@ const path = require('path');
 const jwt = require('jsonwebtoken'); // Import jsonwebtoken
 const { pool, createTable } = require('./db'); // db.js will also be in the root
 
+// --- Environment Variable Check ---
+if (!process.env.JWT_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET is not defined in the environment variables.");
+    process.exit(1); // Exit the application with an error code
+}
+
 const app = express();
 const server = http.createServer(app);
 

@@ -826,13 +826,6 @@
                     content: { text: raushanInput.value },
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
-                
-                // Send message to the server
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(messageData)
-                });
 
                 clearTimeout(raushanTypingTimer); // Stop the typing timer
                 nishaTypingIndicator.classList.remove('visible'); // Hide indicator on send
@@ -847,12 +840,6 @@
                     content: { text: nishaInput.value },
                     timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
-
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(messageData)
-                });
 
                 clearTimeout(nishaTypingTimer); // Stop the typing timer
                 raushanTypingIndicator.classList.remove('visible'); // Hide indicator on send

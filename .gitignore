@@ -1,4 +1,5 @@
-# Ignore Node.js dependencies
-/node_modules
-# Ignore environment variables file
+# Ignore environment files
 .env
+
+# Ignore dependencies
+/node_modules

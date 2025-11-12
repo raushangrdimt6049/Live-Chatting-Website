@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
-const { pool, createTable } = require('./db'); // db.js will also be in the root
+const { db } = require('./firebase'); // Use Firebase
 
 const app = express();
 const server = http.createServer(app);
@@ -164,24 +164,29 @@ wss.on('connection', (ws) => {
 // API to get all messages
 app.get('/api/messages', async (req, res) => {
     try {
-        // Join messages with itself to get replied-to message details
-        const query = `
-            SELECT
-                m.*,
-                json_build_object(
-                    'id', r.id,
-                    'sender', r.sender,
-                    'content', r.content
-                ) AS replied_to
-            FROM
-                messages m
-            LEFT JOIN
-                messages r ON m.reply_to_id = r.id
-            ORDER BY
-                m.created_at ASC
-        `;
-        const result = await pool.query(query);
-        res.json(result.rows);
+        const messagesRef = db.ref('messages');
+        const snapshot = await messagesRef.orderByChild('created_at').once('value');
+        const messages = snapshot.val();
+
+        if (!messages) {
+            return res.json([]);
+        }
+
+        // Convert messages object to an array and enrich with replied_to data
+        const messagesArray = await Promise.all(Object.keys(messages).map(async (key) => {
+            const message = { id: key, ...messages[key] };
+            if (message.reply_to_id && messages[message.reply_to_id]) {
+                const repliedToMsg = messages[message.reply_to_id];
+                message.replied_to = {
+                    id: message.reply_to_id,
+                    sender: repliedToMsg.sender,
+                    content: repliedToMsg.content
+                };
+            }
+            return message;
+        }));
+
+        res.json(messagesArray);
     } catch (err) {
         console.error('Error fetching messages:', err);
         res.status(500).send('Server Error');
@@ -190,38 +195,36 @@ app.get('/api/messages', async (req, res) => {
 
 // API to post a new message
 app.post('/api/messages', async (req, res) => {
-    const { sender, content, timeString, reply_to_id } = req.body; // Add reply_to_id
-    // The 'is_seen' and 'seen_at' columns have defaults, so we don't need to specify them on insert.
+    const { sender, content, timeString, reply_to_id } = req.body;
     try {
-        // Update INSERT query to include reply_to_id
-        const result = await pool.query(
-            `INSERT INTO messages (sender, content, time_string, reply_to_id)
-             VALUES ($1, $2, $3, $4)
-             RETURNING *`,
-            [sender, JSON.stringify(content), timeString, reply_to_id || null]
-        );
-        const newMessage = result.rows[0];
+        const messagesRef = db.ref('messages');
+        const newMessageRef = messagesRef.push(); // Generate a unique, time-ordered key
+
+        const messageData = {
+            sender,
+            content,
+            time_string: timeString,
+            reply_to_id: reply_to_id || null,
+            is_seen: false,
+            seen_at: null,
+            created_at: new Date().toISOString()
+        };
+
+        await newMessageRef.set(messageData);
+
+        const newMessage = { id: newMessageRef.key, ...messageData };
 
         // Add recipient to the message payload for client-side logic
         newMessage.recipient = sender === 'raushan' ? 'nisha' : 'raushan';
 
         // Broadcast the new message to all connected WebSocket clients
         wss.clients.forEach(async (client) => {
-            if (client.readyState === WebSocket.OPEN) {
-                let messageToSend = { ...newMessage };
-
-                // If it's a reply, fetch the replied-to message to include in the payload
-                if (messageToSend.reply_to_id) {
-                    const repliedToResult = await pool.query('SELECT id, sender, content FROM messages WHERE id = $1', [messageToSend.reply_to_id]);
-                    if (repliedToResult.rows.length > 0) {
-                        messageToSend.replied_to = repliedToResult.rows[0];
-                    }
-                }
-
+            if (client.readyState === WebSocket.OPEN) {                
                 // The client-side expects a 'new_message' event with the full payload
                 client.send(JSON.stringify({
                     type: 'new_message',
-                    payload: messageToSend
+                    // Send the 'newMessage' object which already contains all necessary data
+                    payload: newMessage 
                 }));
 
                 // Also notify clients to update their unread counts
@@ -250,11 +253,21 @@ app.get('/api/messages/unread-count', async (req, res) => {
     const sender = user === 'raushan' ? 'nisha' : 'raushan';
 
     try {
-        const result = await pool.query(
-            'SELECT COUNT(*) FROM messages WHERE sender = $1 AND is_seen = FALSE',
-            [sender]
-        );
-        res.json({ count: parseInt(result.rows[0].count, 10) });
+        const messagesRef = db.ref('messages');
+        const snapshot = await messagesRef.orderByChild('sender').equalTo(sender).once('value');
+        const messages = snapshot.val();
+
+        if (!messages) {
+            return res.json({ count: 0 });
+        }
+
+        let unreadCount = 0;
+        Object.values(messages).forEach(msg => {
+            if (!msg.is_seen) {
+                unreadCount++;
+            }
+        });
+        res.json({ count: unreadCount });
     } catch (err) {
         console.error('Error fetching unread count:', err);
         res.status(500).json({ error: 'Failed to fetch unread count' });
@@ -272,28 +285,35 @@ app.post('/api/messages/mark-as-seen', async (req, res) => {
     const sender = user === 'raushan' ? 'nisha' : 'raushan';
 
     try {
-        // First, update the messages that are currently unread.
-        await pool.query(
-            `UPDATE messages SET is_seen = TRUE, seen_at = CURRENT_TIMESTAMP 
-             WHERE sender = $1 AND is_seen = FALSE`,
-            [sender]
-        );
+        const messagesRef = db.ref('messages');
+        const snapshot = await messagesRef.orderByChild('sender').equalTo(sender).once('value');
+        const messagesToUpdate = snapshot.val();
 
-        // Then, fetch ALL messages from that sender that are now marked as seen.
-        // This ensures that even if no messages were updated in this call (because they were already seen),
-        // the client still receives the full list of seen messages to correctly update its UI.
-        const seenMessagesResult = await pool.query(
-            `SELECT * FROM messages WHERE sender = $1 AND is_seen = TRUE`,
-            [sender]
-        );
+        if (!messagesToUpdate) {
+            return res.status(200).json([]);
+        }
+
+        const updates = {};
+        const seenAtTimestamp = new Date().toISOString();
+        const seenMessages = [];
+
+        Object.keys(messagesToUpdate).forEach(key => {
+            const message = messagesToUpdate[key];
+            if (!message.is_seen) {
+                updates[`/${key}/is_seen`] = true;
+                updates[`/${key}/seen_at`] = seenAtTimestamp;
+            }
+            // Collect all messages from the sender that are now considered seen
+            seenMessages.push({ id: key, ...message, is_seen: true, seen_at: updates[`/${key}/seen_at`] || message.seen_at });
+        });
+
+        if (Object.keys(updates).length > 0) {
+            await messagesRef.update(updates);
+        }
 
         // Broadcast the full list of seen messages to all clients.
-        wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ type: 'messages_seen', payload: seenMessagesResult.rows }));
-            }
-        });
-        res.status(200).json(seenMessagesResult.rows);
+        wss.clients.forEach(client => { if (client.readyState === WebSocket.OPEN) { client.send(JSON.stringify({ type: 'messages_seen', payload: seenMessages })); } });
+        res.status(200).json(seenMessages);
     } catch (err) {
         console.error('Error marking messages as seen:', err);
         res.status(500).json({ error: 'Failed to update messages' });
@@ -303,8 +323,8 @@ app.post('/api/messages/mark-as-seen', async (req, res) => {
 // API to clear all messages
 app.delete('/api/messages', async (req, res) => {
     try {
-        // TRUNCATE is faster than DELETE for clearing a whole table and resets the ID sequence.
-        await pool.query('TRUNCATE TABLE messages RESTART IDENTITY');
+        const messagesRef = db.ref('messages');
+        await messagesRef.remove();
         console.log('Chat history cleared from database.');
 
         // Broadcast a clear event to all connected clients
@@ -328,8 +348,7 @@ app.get('/', (req, res) => {
 
 const startServer = async () => {
     try {
-        // Initialize Database Table and wait for it to be ready
-        await createTable();
+        // Firebase is initialized in firebase.js
 
         server.listen(PORT, () => {
             console.log(`Server is listening on http://localhost:${PORT}`);

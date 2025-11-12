@@ -2524,178 +2524,118 @@
 
                 socket.onopen = () => {
                     console.log('WebSocket connection established');
-                    // If a user is already logged in (e.g., on a reconnect), re-register them.
-                    // This is the key fix for the online/offline status.
                     if (activeUser) {
+                        // Register the user with the WebSocket server upon successful login and connection
                         socket.send(JSON.stringify({ type: 'register', payload: { user: activeUser } }));
-                        // Now that the user is registered, fetch the messages.
                         initializeApp();
                     } else if (!initialStatusLoaded) {
-                        // If no user is logged in, ask the server for the current status of all users.
-                        // This is for the initial load of the selection screen.
                         socket.send(JSON.stringify({ type: 'get_all_user_statuses' }));
                         initialStatusLoaded = true;
                     }
                 };
 
                 socket.onmessage = (event) => {
-                    const eventData = JSON.parse(event.data);
+                    // The server sends structured messages. We need to parse and handle them.
+                    const data = JSON.parse(event.data);
 
-                    switch (eventData.type) {
+                    switch (data.type) {
                         case 'new_message':
-                            const message = eventData.payload;
-                            // Prevent re-rendering of a message that already exists in the DOM.
-                            if (!messageElements.has(message.id)) {
-                                renderMessage(message);
-
-                                // Play sound if the active user is the recipient of the message
-                                if (activeUser && message.sender !== activeUser) {
-                                    notificationSound.play().catch(e => console.error("Error playing sound:", e));
-                                }
-
-                                // If the current active user is the recipient, mark message as seen immediately
-                                // Only mark as seen if the user is the recipient AND the window is currently focused.
-                                if (activeUser && activeUser === message.recipient && !document.hidden) {
-                                    setTimeout(() => {
-                                        fetch('/api/messages/mark-as-seen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: activeUser }) });
-                                    }, 100);
+                            renderMessage(data.payload);
+                            // Play notification sound if the message is not from the active user
+                            if (data.payload.sender !== activeUser) {
+                                notificationSound.play().catch(e => console.log("Notification sound blocked by browser."));
+                                
+                                // Automatically mark the message as seen since it has been delivered to this client
+                                if (activeUser && socket && socket.readyState === WebSocket.OPEN) {
+                                    fetch('/api/messages/mark-as-seen', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ user: activeUser })
+                                    });
                                 }
                             }
                             break;
-                        case 'typing':
-                            const typingIndicator = eventData.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
-                            typingIndicator.classList.add('visible');
-                            typingIndicator.parentElement.querySelector('.chat-messages').scrollTop = typingIndicator.parentElement.querySelector('.chat-messages').scrollHeight;
-                            break;
-                        case 'stop_typing':
-                            const stopTypingIndicator = eventData.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
-                            stopTypingIndicator.classList.remove('visible');
-                            break;
-                        case 'chat_cleared':
-                            raushanMessages.innerHTML = '';
-                            nishaMessages.innerHTML = '';
-                            messageElements.clear();
-                            console.log('Chat history cleared on client.');
-                            break;
                         case 'messages_seen':
-                            eventData.payload.forEach(seenMessage => {
-                                const messageTuple = messageElements.get(seenMessage.id);
-                                if (messageTuple) {
-                                    // The UI element to update is the one in the SENDER's chat window.
-                                    // For example, if Nisha saw a message from Raushan, we update Raushan's message bubble.
-                                    const messageToUpdate = seenMessage.sender === 'raushan'
-                                        ? messageTuple.raushan
-                                        : messageTuple.nisha;
-                                    
-                                    const statusEl = messageToUpdate.statusElement;
-                                    if (statusEl && !statusEl.classList.contains('seen')) {
+                            // When messages are marked as seen, update their status ticks.
+                            data.payload.forEach(seenMessage => {
+                                const elements = messageElements.get(seenMessage.id);
+                                if (elements) {
+                                    // Find the sender's message element to update the status
+                                    const senderMessageElement = seenMessage.sender === 'raushan' ? elements.raushan : elements.nisha; // This is the sender's own message bubble
+                                    const statusEl = senderMessageElement.statusElement;
+                                    if (statusEl) {
                                         statusEl.innerHTML = '✓✓';
                                         statusEl.classList.add('seen');
- 
-                                        let seenInfoDiv = messageToUpdate.querySelector('.message-seen-info');
-                                        if (!seenInfoDiv) {
-                                            seenInfoDiv = document.createElement('div');
-                                            seenInfoDiv.className = 'message-seen-info';
-                                            const seenDateSpan = document.createElement('span');
-                                            seenDateSpan.className = 'seen-date';
-                                            seenInfoDiv.appendChild(seenDateSpan);
-                                            const seenTimeSpan = document.createElement('span'); // Create the time span
-                                            seenTimeSpan.className = 'seen-time'; // Assign its class
-                                            seenInfoDiv.appendChild(seenTimeSpan);
-                                            messageToUpdate.appendChild(seenInfoDiv);
-                                        }
-                                        seenInfoDiv.querySelector('.seen-date').textContent = formatSeenDate(seenMessage.seen_at);
-                                        seenInfoDiv.querySelector('.seen-time').textContent = formatSeenTime(seenMessage.seen_at);
+                                    }
+                                    // Add the seen date and time info dynamically
+                                    if (seenMessage.seen_at && !senderMessageElement.querySelector('.message-seen-info')) {
+                                        const seenInfoDiv = document.createElement('div');
+                                        seenInfoDiv.className = 'message-seen-info';
+                                        const seenDateSpan = document.createElement('span');
+                                        seenDateSpan.textContent = formatSeenDate(seenMessage.seen_at);
+                                        const seenTimeSpan = document.createElement('span');
+                                        seenTimeSpan.textContent = formatSeenTime(seenMessage.seen_at);
+                                        seenInfoDiv.appendChild(seenDateSpan);
+                                        seenInfoDiv.appendChild(seenTimeSpan);
+                                        senderMessageElement.appendChild(seenInfoDiv);
                                     }
                                 }
                             });
                             break;
-                        case 'unread_count_update':
-                            updateUnreadCounts();
+                        case 'chat_cleared':
+                            raushanMessages.innerHTML = '';
+                            nishaMessages.innerHTML = '';
+                            messageElements.clear(); // Clear the map of message elements
+                            lastMessageDateRaushan = null; // Reset date separators
+                            lastMessageDateNisha = null;
+                            break;
+                        case 'typing':
+                            const typingIndicator = data.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
+                            typingIndicator.classList.add('visible');
+                            typingIndicator.parentElement.querySelector('.chat-messages').scrollTop = typingIndicator.parentElement.querySelector('.chat-messages').scrollHeight;
+                            break;
+                        case 'stop_typing':
+                            const stopTypingIndicator = data.user === 'raushan' ? nishaTypingIndicator : raushanTypingIndicator;
+                            stopTypingIndicator.classList.remove('visible');
                             break;
                         case 'user_status':
-                            const { user, status } = eventData.payload;
-                            updateUserStatusUI(user, status);
+                            updateUserStatusUI(data.payload.user, data.payload.status);
                             break;
                         case 'all_user_statuses':
-                            // This handles the initial status load on the selection screen
-                            const statuses = eventData.payload; // e.g., { raushan: 'online', nisha: 'offline' }
-                            for (const user in statuses) {
-                                updateUserStatusUI(user, statuses[user]);
-                            }
+                            updateUserStatusUI('raushan', data.payload.raushan);
+                            updateUserStatusUI('nisha', data.payload.nisha);
                             break;
-                        // --- WebRTC Signaling Cases ---
                         case 'call-offer':
-                            handleIncomingCall(eventData.payload); // The payload here is for the call, not a user status.
+                            handleIncomingCall(data.payload);
                             break;
                         case 'call-answer':
-                            handleCallAnswer(eventData.payload);
+                            handleCallAnswer(data.payload);
                             break;
                         case 'ice-candidate':
-                            handleNewICECandidate(eventData.payload);
+                            handleNewICECandidate(data.payload);
                             break;
                         case 'call-end':
-                            endCall(false); // Don't send another end signal
-                            break;
-                        case 'call-reject':
-                            alert(`${eventData.payload.from} rejected the call.`); endCall(false);
-                            break;
-                        case 'user-busy':
-                            alert(`${eventData.payload.recipient} is busy.`); endCall(false);
-                            break;
-                        case 'call-recipient-offline':
-                            // This is the new event from the server when the call recipient is not connected.
-                            alert(`${eventData.payload.recipient} is offline.`);
-                            // The server will create the missed call message, so the client just needs to end the call UI.
                             endCall(false);
                             break;
+                        case 'user-busy':
+                            alert(`${data.payload.from} is currently busy on another call.`);
+                            endCall(false); // End the outgoing call UI
+                            break;
+                        case 'voice-chat-offer': handleVoiceChatOffer(data.payload); break;
+                        case 'voice-chat-answer': handleVoiceChatAnswer(data.payload); break;
+                        case 'voice-chat-ice-candidate': handleVoiceChatICECandidate(data.payload); break;
+                        case 'voice-chat-end': endVoiceChat(); break;
+                        case 'sound_alert': handleSoundAlert(data.payload.from); break;
+                        case 'live-video-offer': handleLiveVideoOffer(data.payload); break;
+                        case 'live-video-answer': handleLiveVideoAnswer(data.payload); break;
+                        case 'live-video-ice-candidate': handleLiveVideoICECandidate(data.payload); break;
+                        case 'live-video-end': endLiveVideo(false); break;
                         case 'peer-disconnected':
-                            // This is the new event from the server when the other user's WebSocket closes.
-                            if (isCallInProgress) {
-                                console.log('Peer WebSocket disconnected. Attempting to reconnect...');
-                                callStatusTextHeaderEl.textContent = 'Connecting...';
-                                if (!reconnectionTimer) {
-                                    reconnectionTimer = setTimeout(() => {
-                                        console.log("Reconnection timeout after peer WS disconnect. Ending call.");
-                                        endCall(true);
-                                    }, RECONNECTION_TIMEOUT);
-                                }
+                            // If a peer disconnects forcefully, end any active calls with them
+                            if (isCallInProgress && (callRecipient === data.payload.user || callOfferData?.from === data.payload.user)) {
+                                console.log(`Peer ${data.payload.user} disconnected, ending call.`);
+                                endCall(false);
                             }
-                            break;
-                        // --- Voice Chat Signaling ---
-                        case 'voice-chat-offer':
-                            handleVoiceChatOffer(eventData.payload);
-                            break;
-                        case 'voice-chat-answer':
-                            handleVoiceChatAnswer(eventData.payload);
-                            break;
-                        case 'voice-chat-ice-candidate':
-                            handleVoiceChatICECandidate(eventData.payload);
-                            break;
-                        case 'voice-chat-end':
-                            if (voiceChatPeerConnection) {
-                                console.log("Received voice chat end signal.");
-                                endVoiceChat();
-                            }
-                            break;
-                        // --- Sound Alert ---
-                        case 'sound_alert':
-                            handleSoundAlert(eventData.payload.from);
-                            break;
-                        // --- Live Video Signaling ---
-                        case 'live-video-offer':
-                            handleLiveVideoOffer(eventData.payload);
-                            break;
-                        case 'live-video-answer':
-                            handleLiveVideoAnswer(eventData.payload);
-                            break;
-                        case 'live-video-ice-candidate':
-                            handleLiveVideoICECandidate(eventData.payload);
-                            break;
-                        case 'live-video-end':
-                            if (liveVideoPeerConnection) endLiveVideo(false);
-                            break;
-
                             break;
                     }
                 };
@@ -2734,9 +2674,14 @@
             }
             // Function to render a message to both chat windows
             function renderMessage(messageData) {
-                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt } = messageData;
+                const { id, sender, content, time_string: timeString, is_seen: isSeen, seen_at: seenAt, created_at } = messageData;
+
+                // Prevent rendering if message already exists (defensive check)
+                if (messageElements.has(id)) {
+                    return;
+                }
                 
-                const messageDateObj = new Date(id);
+                const messageDateObj = new Date(created_at); // Use created_at for the date object
                 // Normalize to YYYY-MM-DD for consistent comparison across locales
                 const normalizedMessageDate = messageDateObj.getFullYear() + '-' + 
                                               String(messageDateObj.getMonth() + 1).padStart(2, '0') + '-' + 
@@ -2748,14 +2693,15 @@
                     separatorDiv.className = 'date-separator';                    
                     const msgDate = new Date(messageTimestampId); // The date of the message
 
-                    // Create robust 'today' and 'yesterday' dates set to midnight for accurate comparison
-                    const today = new Date(); 
-                    today.setHours(0, 0, 0, 0);
-                    const yesterday = new Date(today);
-                    yesterday.setDate(today.getDate() - 1);
+                    // Create 'today' and 'yesterday' dates set to midnight for accurate comparison
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Set to start of today
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    yesterday.setHours(0, 0, 0, 0); // Set to start of yesterday
 
                     if (isSameDay(msgDate, today)) {
-                        separatorDiv.textContent = 'Today';
+                        separatorDiv.textContent = msgDate.toLocaleDateString('en-GB'); // Formats as DD/MM/YYYY
                     } else if (isSameDay(msgDate, yesterday)) {
                         separatorDiv.textContent = 'Yesterday';
                     } else {
@@ -2931,11 +2877,9 @@
  
                     const dateSpan = document.createElement('span');
                     dateSpan.className = 'message-datestamp';
-                    // Use the message ID (which is the 'created_at' timestamp) to create the date.
-                    // The 'id' will be a valid timestamp for messages from the DB, or undefined for a new local message.
-                    // We only show the date if the ID is valid.
-                    if (id) {
-                        const messageDate = new Date(id);
+                    // Use the 'created_at' timestamp from the server to create the date.
+                    if (created_at) {
+                        const messageDate = new Date(created_at);
                         dateSpan.textContent = messageDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
                     }
                     metaRightDiv.appendChild(dateSpan);
@@ -3044,11 +2988,11 @@
 
                 // Add date separators if needed
                 if (normalizedMessageDate !== lastMessageDateRaushan) {
-                    raushanMessages.appendChild(createDateSeparator(id));
+                    raushanMessages.appendChild(createDateSeparator(created_at)); // Use created_at
                     lastMessageDateRaushan = normalizedMessageDate;
                 }
                 if (normalizedMessageDate !== lastMessageDateNisha) {
-                    nishaMessages.appendChild(createDateSeparator(id));
+                    nishaMessages.appendChild(createDateSeparator(created_at)); // Use created_at
                     lastMessageDateNisha = normalizedMessageDate;
                 }
 
@@ -3213,7 +3157,12 @@
                     content.imageUrl = attachedFileUrl;
                 }
 
-                const messageData = { sender: activeUserForAttachment, content, timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                const messageData = { 
+                    sender: activeUserForAttachment, 
+                    content, 
+                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    recipient: activeUserForAttachment === 'raushan' ? 'nisha' : 'raushan'
+                };
                 await fetch('/api/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(messageData) });
                 closeAttachmentPreview();
             });
@@ -3345,7 +3294,8 @@
                 const messageData = {
                     sender: activeUserForAttachment,
                     content: { imageUrl: capturedImageDataUrl },
-                    timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            recipient: activeUserForAttachment === 'raushan' ? 'nisha' : 'raushan'
                 };
 
                 try {
@@ -3440,7 +3390,8 @@
                         const base64Audio = reader.result;
                         const messageData = {
                             sender: user,
-                            content: { audioUrl: base64Audio },
+                            content: { audioUrl: base64Audio }, // This was correct
+                            recipient: user === 'raushan' ? 'nisha' : 'raushan',
                             timeString: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         };
                         await fetch('/api/messages', {

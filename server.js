@@ -3,7 +3,18 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+<<<<<<< HEAD
 const { db } = require('./firebase'); // Use Firebase
+=======
+const jwt = require('jsonwebtoken'); // Import jsonwebtoken
+const { pool, createTable } = require('./db'); // db.js will also be in the root
+>>>>>>> 99ff7e733a2dce1971de885ad15b07a768d54ba6
+
+// --- Environment Variable Check ---
+if (!process.env.JWT_SECRET) {
+    console.error("FATAL ERROR: JWT_SECRET is not defined in the environment variables.");
+    process.exit(1); // Exit the application with an error code
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -31,9 +42,15 @@ app.post('/api/login', (req, res) => {
 
     // Check if user exists and password is correct
     if (userCredentials && userCredentials.password === password) {
-        res.status(200).json({ success: true, user: userCredentials.key });
+        // Sign a JWT token
+        const token = jwt.sign(
+            { username: username, userKey: userCredentials.key },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' } // Token expires in 24 hours
+        );
+        res.status(200).json({ success: true, user: userCredentials.key, token: token });
     } else {
-        res.status(401).json({ success: false, message: 'Invalid credentials' });
+        res.status(401).json({ success: false, message: 'Invalid credentials', token: null });
     }
 });
 
